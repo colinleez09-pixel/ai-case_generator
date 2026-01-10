@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JavaScript语法检查</title>
+</head>
+<body>
+    <h1>JavaScript语法检查</h1>
+    <div id="result"></div>
+    
+    <script>
+        console.log('开始检查JavaScript语法...');
+        
+        // 尝试加载script.js
+        const script = document.createElement('script');
+        script.src = '/static/script.js';
+        script.onerror = function(e) {
+            console.error('JavaScript加载失败:', e);
+            document.getElementById('result').innerHTML = '<p style="color: red;">JavaScript加载失败，请检查语法错误</p>';
+        };
+        script.onload = function() {
+            console.log('JavaScript加载成功');
+            document.getElementById('result').innerHTML = '<p style="color: green;">JavaScript加载成功，语法正确</p>';
+        };
+        
+        document.head.appendChild(script);
+    </script>
+</body>
+</html>

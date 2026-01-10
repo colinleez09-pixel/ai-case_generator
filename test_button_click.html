@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>按钮点击测试 - 增强版</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .test-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .action-btn {
+      padding: 10px 24px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #5a7a9a;
+      color: white;
+      border: none;
+      margin: 10px;
+    }
+    .action-btn:hover {
+      background: #4a6a8a;
+    }
+    .action-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .message {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .message-avatar {
+      min-width: 42px;
+      height: 36px;
+      padding: 0 8px;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, #5a7a9a 0%, #7a9ab8 100%);
+      color: white;
+    }
+    .message-content {
+      flex: none;
+      max-width: 70%;
+      background: #f8f9fa;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      color: #2c3e50;
+    }
+    .generate-action {
+      margin-top: 12px;
+    }
+    .log {
+      background: #f0f0f0;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .test-section {
+      border: 1px solid #ddd;
+      margin: 20px 0;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    .status {
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-weight: bold;
+      margin: 5px 0;
+    }
+    .status.success { background: #d4edda; color: #155724; }
+    .status.error { background: #f8d7da; color: #721c24; }
+    .status.warning { background: #fff3cd; color: #856404; }
+  </style>
+</head>
+<body>
+  <div class="test-container">
+    <h1>按钮点击测试 - 增强版调试</h1>
+    
+    <div class="test-section">
+      <h3>测试1: 直接按钮</h3>
+      <button class="action-btn primary" onclick="testClick1()">直接按钮测试</button>
+      <div id="status1" class="status"></div>
+    </div>
+    
+    <div class="test-section">
+      <h3>测试2: 动态创建的按钮（模拟实际情况）</h3>
+      <div id="dynamicButtonContainer"></div>
+      <button onclick="createDynamicButton()">创建动态按钮</button>
+      <div id="status2" class="status"></div>
+    </div>
+    
+    <div class="test-section">
+      <h3>测试3: 完全模拟showGenerateButton（增强版）</h3>
+      <div id="chatMessages" style="min-height: 100px; border: 1px solid #ddd; padding: 10px; border-radius: 4px;"></div>
+      <button onclick="simulateShowGenerateButton()">模拟显示生成按钮</button>
+      <button onclick="clearChatMessages()">清空聊天区域</button>
+      <div id="status3" class="status"></div>
+    </div>
+    
+    <div class="test-section">
+      <h3>测试4: 元素检查</h3>
+      <button onclick="checkElements()">检查DOM元素</button>
+      <div id="status4" class="status"></div>
+    </div>
+    
+    <h3>调试日志</h3>
+    <div class="log" id="debugLog"></div>
+    
+    <button onclick="clearLog()">清空日志</button>
+    <button onclick="runAllTests()">运行所有测试</button>
+  </div>
+
+  <script>
+    // 模拟全局变量
+    let isGenerating = false;
+    let currentSessionId = 'test-session-123';
+    const API_BASE_URL = '/api';
+    
+    // 模拟 elements 对象
+    const elements = {
+      chatMessages: null
+    };
+    
+    function log(message) {
+      const logDiv = document.getElementById('debugLog');
+      const timestamp = new Date().toLocaleTimeString();
+      logDiv.innerHTML += `[${timestamp}] ${message}<br>`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(message);
+    }
+    
+    function clearLog() {
+      document.getElementById('debugLog').innerHTML = '';
+    }
+    
+    function clearChatMessages() {
+      const chatMessages = document.getElementById('chatMessages');
+      chatMessages.innerHTML = '';
+      log('聊天区域已清空');
+    }
+    
+    function setStatus(testId, message, type = 'success') {
+      const statusDiv = document.getElementById(`status${testId}`);
+      statusDiv.textContent = message;
+      statusDiv.className = `status ${type}`;
+    }
+    
+    function testClick1() {
+      log('✅ 直接按钮点击成功!');
+      setStatus(1, '直接按钮测试通过');
+    }
+    
+    function createDynamicButton() {
+      log('创建动态按钮...');
+      const container = document.getElementById('dynamicButtonContainer');
+      container.innerHTML = '<button class="action-btn primary" id="dynamicBtn">动态按钮</button>';
+      
+      const btn = document.getElementById('dynamicBtn');
+      if (btn) {
+        btn.addEventListener('click', function() {
+          log('✅ 动态按钮点击成功!');
+          setStatus(2, '动态按钮测试通过');
+        });
+        log('动态按钮创建完成');
+        setStatus(2, '动态按钮已创建，请点击测试');
+      } else {
+        log('❌ 动态按钮创建失败');
+        setStatus(2, '动态按钮创建失败', 'error');
+      }
+    }
+    
+    function checkElements() {
+      log('🔍 检查DOM元素...');
+      
+      const chatMessages = document.getElementById('chatMessages');
+      log('chatMessages 元素: ' + (chatMessages ? '存在' : '不存在'));
+      
+      if (chatMessages) {
+        log('chatMessages 属性:');
+        log('  - offsetParent: ' + (chatMessages.offsetParent !== null ? '可见' : '隐藏'));
+        log('  - clientHeight: ' + chatMessages.clientHeight);
+        log('  - innerHTML length: ' + chatMessages.innerHTML.length);
+      }
+      
+      elements.chatMessages = chatMessages;
+      log('elements.chatMessages 已更新');
+      
+      setStatus(4, 'DOM元素检查完成');
+    }
+    
+    // 模拟 addMessage 函数
+    function addMessage(text, type) {
+      log(`📝 添加消息: [${type}] ${text}`);
+      // 这里不实际添加消息，只是记录日志
+    }
+    
+    // 模拟 startGeneratingCases 函数（增强版）
+    async function startGeneratingCases() {
+      log('🚀 startGeneratingCases 函数被调用');
+      log('📊 当前状态检查:');
+      log('  - currentSessionId: ' + currentSessionId);
+      log('  - isGenerating: ' + isGenerating);
+      log('  - API_BASE_URL: ' + API_BASE_URL);
+      
+      if (!currentSessionId) {
+        log('❌ 会话ID不存在');
+        alert("会话已过期，请重新开始");
+        return;
+      }
+
+      if (isGenerating) {
+        log('⚠️ 已经在生成中，忽略请求');
+        return;
+      }
+
+      log('✅ 设置生成状态为 true');
+      isGenerating = true;
+      
+      // 模拟异步操作
+      setTimeout(() => {
+        log('✅ 模拟生成完成');
+        isGenerating = false;
+        setStatus(3, 'startGeneratingCases 执行成功');
+      }, 2000);
+    }
+    
+    // 完全模拟 showGenerateButton 函数（增强版）
+    function simulateShowGenerateButton() {
+      log('🔄 simulateShowGenerateButton 被调用');
+      log('elements.chatMessages:', elements.chatMessages);
+      log('currentSessionId:', currentSessionId);
+      log('isGenerating:', isGenerating);
+      
+      // 检查必要的元素是否存在
+      if (!elements.chatMessages) {
+        log('chatMessages 元素不存在，尝试重新获取');
+        elements.chatMessages = document.getElementById("chatMessages");
+        if (!elements.chatMessages) {
+          log('❌ 无法找到 chatMessages 元素');
+          setStatus(3, '无法找到 chatMessages 元素', 'error');
+          return;
+        }
+      }
+      
+      const buttonHtml = `
+        <div class="generate-action">
+          <button class="action-btn primary" id="startGenerateBtn">开始生成测试用例</button>
+        </div>
+      `;
+      
+      const messageDiv = document.createElement("div");
+      messageDiv.className = "message ai-message";
+      messageDiv.innerHTML = `
+        <div class="message-avatar">Agent</div>
+        <div class="message-content">${buttonHtml}</div>
+      `;
+      
+      log('准备添加消息到聊天区域');
+      elements.chatMessages.appendChild(messageDiv);
+      elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+      log('消息已添加到聊天区域');
+
+      // 使用更可靠的方式获取按钮元素
+      const startBtn = document.getElementById('startGenerateBtn');
+      log('通过ID查找按钮元素: ' + (startBtn ? '找到' : '未找到'));
+      
+      if (!startBtn) {
+        // 如果通过ID找不到，尝试通过querySelector
+        const startBtnAlt = messageDiv.querySelector('#startGenerateBtn');
+        log('通过querySelector查找按钮元素: ' + (startBtnAlt ? '找到' : '未找到'));
+      }
+      
+      if (startBtn) {
+        log('按钮元素存在，开始绑定事件');
+        
+        // 移除可能存在的旧事件监听器
+        const newBtn = startBtn.cloneNode(true);
+        startBtn.parentNode.replaceChild(newBtn, startBtn);
+        
+        newBtn.addEventListener('click', function(event) {
+          log('🎯 按钮被点击了!');
+          log('事件对象: ' + (event ? '存在' : '不存在'));
+          log('按钮元素: ' + (this ? '存在' : '不存在'));
+          log('按钮状态 - disabled: ' + this.disabled);
+          log('全局状态 - isGenerating: ' + isGenerating);
+          
+          event.preventDefault();
+          event.stopPropagation();
+          
+          // 防止重复点击
+          if (this.disabled || isGenerating) {
+            log('⚠️ 按钮已禁用或正在生成中，忽略点击');
+            return;
+          }
+          
+          log('✅ 开始处理按钮点击');
+          
+          // 禁用按钮
+          this.disabled = true;
+          this.textContent = "生成中...";
+          log('按钮状态已更新为生成中');
+          
+          // 调用生成函数
+          try {
+            log('📞 准备调用 startGeneratingCases');
+            startGeneratingCases().catch(error => {
+              log('startGeneratingCases 异步执行失败: ' + error.message);
+              // 恢复按钮状态
+              this.disabled = false;
+              this.textContent = "开始生成测试用例";
+            });
+          } catch (error) {
+            log('❌ 调用 startGeneratingCases 失败: ' + error.message);
+            // 恢复按钮状态
+            this.disabled = false;
+            this.textContent = "开始生成测试用例";
+          }
+        });
+        
+        log('✅ 按钮事件绑定完成');
+        
+        // 验证事件绑定
+        setTimeout(() => {
+          log('验证按钮状态:');
+          const btn = document.getElementById('startGenerateBtn');
+          log('- 按钮是否存在: ' + (btn ? '是' : '否'));
+          log('- 按钮是否可见: ' + (btn && btn.offsetParent !== null ? '是' : '否'));
+          log('- 按钮是否禁用: ' + (btn ? btn.disabled : 'N/A'));
+          
+          setStatus(3, '生成按钮已创建，请点击测试', 'warning');
+        }, 100);
+        
+      } else {
+        log('❌ 未找到按钮元素!');
+        log('DOM 结构: ' + messageDiv.innerHTML);
+        setStatus(3, '未找到按钮元素', 'error');
+      }
+    }
+    
+    function runAllTests() {
+      log('🧪 开始运行所有测试...');
+      
+      // 重置状态
+      clearLog();
+      isGenerating = false;
+      
+      // 运行测试
+      setTimeout(() => {
+        log('测试1: 直接按钮');
+        testClick1();
+      }, 100);
+      
+      setTimeout(() => {
+        log('测试2: 动态按钮');
+        createDynamicButton();
+      }, 200);
+      
+      setTimeout(() => {
+        log('测试3: 元素检查');
+        checkElements();
+      }, 300);
+      
+      setTimeout(() => {
+        log('测试4: 模拟生成按钮');
+        simulateShowGenerateButton();
+      }, 400);
+    }
+    
+    // 页面加载完成后的初始化
+    document.addEventListener('DOMContentLoaded', function() {
+      log('📄 页面加载完成');
+      checkElements();
+    });
+  </script>
+</body>
+</html>

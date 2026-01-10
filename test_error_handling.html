@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>错误处理测试</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f8fafc;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .test-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    .error-section {
+      margin-bottom: 24px;
+      padding: 16px;
+      border-radius: 8px;
+    }
+    .error-409 {
+      background: #fff5f5;
+      border: 1px solid #fed7d7;
+    }
+    .error-title {
+      font-weight: 600;
+      color: #e53e3e;
+      margin-bottom: 8px;
+    }
+    .error-description {
+      color: #4a5568;
+      margin-bottom: 12px;
+    }
+    .fix-list {
+      background: #f0fff4;
+      border: 1px solid #9ae6b4;
+      padding: 12px;
+      border-radius: 6px;
+    }
+    .fix-list h4 {
+      color: #2f855a;
+      margin-bottom: 8px;
+    }
+    .fix-list ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+    .fix-list li {
+      color: #2d3748;
+      margin-bottom: 4px;
+    }
+    .code-block {
+      background: #f7fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 12px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      margin: 8px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="test-container">
+    <h1>HTTP 409 CONFLICT 错误修复说明</h1>
+    
+    <div class="error-section error-409">
+      <div class="error-title">🚨 错误现象</div>
+      <div class="error-description">
+        前端调用 <code>/api/generation/generate</code> 时收到 HTTP 409 CONFLICT 错误
+      </div>
+      <div class="code-block">
+        POST http://127.0.0.1:5000/api/generation/generate 409 (CONFLICT)<br>
+        生成测试用例失败: Error: HTTP 409: CONFLICT
+      </div>
+    </div>
+
+    <div class="error-section">
+      <div class="error-title">🔍 问题分析</div>
+      <div class="error-description">
+        后端 <code>/generation/generate</code> 路由检查会话状态必须为 <code>'ready_to_generate'</code>：
+      </div>
+      <div class="code-block">
+        # 检查会话状态<br>
+        if session_data.get('status') != 'ready_to_generate':<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;return jsonify({<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'success': False,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'error': 'session_error',<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'message': '会话状态不正确，请先完成对话交互'<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;}), 409
+      </div>
+    </div>
+
+    <div class="fix-list">
+      <h4>✅ 已实施的修复措施</h4>
+      <ul>
+        <li><strong>防重复点击：</strong>添加 <code>isGenerating</code> 状态检查，防止重复请求</li>
+        <li><strong>按钮状态管理：</strong>点击后立即禁用按钮，显示"生成中..."</li>
+        <li><strong>延迟显示按钮：</strong>检测到生成关键词后延迟500ms显示按钮，确保后端状态已更新</li>
+        <li><strong>友好错误提示：</strong>409错误时显示"会话状态不正确，请稍等片刻后重试"</li>
+        <li><strong>状态重置：</strong>错误时正确重置 <code>isGenerating</code> 状态</li>
+        <li><strong>更好的错误解析：</strong>尝试解析后端返回的具体错误信息</li>
+      </ul>
+    </div>
+
+    <div class="error-section">
+      <div class="error-title">🔧 修复后的流程</div>
+      <div class="error-description">
+        <ol>
+          <li>用户与AI对话，AI回复包含生成关键词</li>
+          <li>前端检测关键词，延迟500ms后显示"开始生成测试用例"按钮</li>
+          <li>用户点击按钮，立即禁用并显示"生成中..."</li>
+          <li>检查 <code>isGenerating</code> 状态，防止重复请求</li>
+          <li>调用后端API，如果409错误则显示友好提示</li>
+          <li>成功或失败后都正确重置状态</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="error-section">
+      <div class="error-title">💡 使用建议</div>
+      <div class="error-description">
+        如果仍然遇到409错误，请：
+        <ul>
+          <li>等待几秒钟后重试</li>
+          <li>检查后端日志确认会话状态</li>
+          <li>必要时重新开始对话流程</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

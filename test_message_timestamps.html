@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>测试消息时间戳</title>
+  <link rel="stylesheet" href="static/styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="main-content">
+      <div class="chat-section">
+        <div class="card chat-card">
+          <div class="chat-header">
+            <span>消息时间戳测试</span>
+          </div>
+          <div class="chat-messages" id="chatMessages">
+            <!-- 消息将通过JavaScript动态添加 -->
+          </div>
+          <div class="chat-input-area">
+            <input type="text" id="messageInput" placeholder="输入测试消息...">
+            <button id="sendBtn">发送</button>
+            <button id="addOldMessageBtn">添加昨天消息</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 时间戳格式化函数
+    function formatTimestamp(date) {
+      const now = new Date();
+      const messageDate = new Date(date);
+      
+      // 检查是否是同一天
+      const isSameDay = now.toDateString() === messageDate.toDateString();
+      
+      const hours = messageDate.getHours().toString().padStart(2, '0');
+      const minutes = messageDate.getMinutes().toString().padStart(2, '0');
+      const timeString = `${hours}:${minutes}`;
+      
+      if (isSameDay) {
+        return timeString;
+      } else {
+        // 不同天显示月-日 时:分
+        const month = (messageDate.getMonth() + 1).toString().padStart(2, '0');
+        const day = messageDate.getDate().toString().padStart(2, '0');
+        return `${month}-${day} ${timeString}`;
+      }
+    }
+
+    function addMessage(text, type, timestamp = null) {
+      const messageTimestamp = timestamp || new Date();
+      const formattedTime = formatTimestamp(messageTimestamp);
+      
+      const messageDiv = document.createElement("div")
+      messageDiv.className = `message ${type}-message`
+      messageDiv.innerHTML = `
+        <div class="message-avatar">${type === "ai" ? "Agent" : "我"}</div>
+        <div class="message-content">
+          <div class="message-text">${text.replace(/\n/g, "<br>")}</div>
+          <div class="message-timestamp">${formattedTime}</div>
+        </div>
+      `
+      document.getElementById('chatMessages').appendChild(messageDiv)
+      document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight
+    }
+
+    // 初始化测试
+    document.addEventListener('DOMContentLoaded', function() {
+      // 添加一些测试消息
+      addMessage("你好！我是 AI 助手。", "ai");
+      addMessage("你好，请帮我测试时间戳功能。", "user");
+      addMessage("好的，我会帮你测试。你可以看到每条消息都有时间戳显示。", "ai");
+      
+      // 添加昨天的消息（用于测试不同日期格式）
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      yesterday.setHours(10, 30, 0, 0);
+      addMessage("这是昨天的消息，应该显示日期。", "ai", yesterday);
+
+      // 绑定发送按钮事件
+      document.getElementById('sendBtn').addEventListener('click', function() {
+        const input = document.getElementById('messageInput');
+        if (input.value.trim()) {
+          addMessage(input.value, "user");
+          input.value = '';
+          
+          // 模拟AI回复
+          setTimeout(() => {
+            addMessage("收到你的消息：" + new Date().toLocaleTimeString(), "ai");
+          }, 1000);
+        }
+      });
+
+      // 绑定添加昨天消息按钮
+      document.getElementById('addOldMessageBtn').addEventListener('click', function() {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        yesterday.setHours(Math.floor(Math.random() * 24), Math.floor(Math.random() * 60), 0, 0);
+        addMessage("这是昨天 " + yesterday.getHours() + ":" + yesterday.getMinutes().toString().padStart(2, '0') + " 的消息", "ai", yesterday);
+      });
+
+      // 回车发送
+      document.getElementById('messageInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          document.getElementById('sendBtn').click();
+        }
+      });
+    });
+  </script>
+</body>
+</html>

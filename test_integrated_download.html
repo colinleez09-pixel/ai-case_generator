@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>集成下载功能测试</title>
+  <link rel="stylesheet" href="static/styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>集成下载功能测试</h1>
+    
+    <div class="main-content">
+      <div class="chat-section">
+        <div class="card chat-card">
+          <div class="chat-header">
+            <span>测试集成下载功能</span>
+          </div>
+          <div class="chat-messages" id="chatMessages">
+            <!-- 测试消息将在这里显示 -->
+          </div>
+          <div class="chat-input-area" id="chatInputArea">
+            <input type="text" id="chatInput" placeholder="输入消息测试聊天功能...">
+            <button id="sendBtn" class="send-btn">发送</button>
+          </div>
+          <div style="padding: 16px; border-top: 1px solid #ecf0f1;">
+            <button id="testNormalDownload" class="action-btn primary">测试正常下载</button>
+            <button id="testErrorDownload" class="action-btn secondary">测试错误下载</button>
+            <button id="testChatInput" class="action-btn secondary">测试聊天输入</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 模拟必要的全局变量和函数
+    const API_BASE_URL = '/api';
+    let currentSessionId = 'test-session-123';
+    let currentFileId = 'test-file-456';
+    
+    const elements = {
+      chatMessages: document.getElementById('chatMessages'),
+      chatInput: document.getElementById('chatInput'),
+      sendBtn: document.getElementById('sendBtn'),
+      chatInputArea: document.getElementById('chatInputArea')
+    };
+
+    // 时间戳格式化函数
+    function formatTimestamp(date) {
+      const now = new Date();
+      const messageDate = new Date(date);
+      
+      const isSameDay = now.toDateString() === messageDate.toDateString();
+      
+      const hours = messageDate.getHours().toString().padStart(2, '0');
+      const minutes = messageDate.getMinutes().toString().padStart(2, '0');
+      const timeString = `${hours}:${minutes}`;
+      
+      if (isSameDay) {
+        return timeString;
+      } else {
+        const month = (messageDate.getMonth() + 1).toString().padStart(2, '0');
+        const day = messageDate.getDate().toString().padStart(2, '0');
+        return `${month}-${day} ${timeString}`;
+      }
+    }
+
+    // 添加消息函数
+    function addMessage(text, type) {
+      const messageDiv = document.createElement("div");
+      messageDiv.className = `message ${type}-message`;
+      messageDiv.innerHTML = `
+        <div class="message-avatar">${type === "ai" ? "Agent" : "我"}</div>
+        <div class="message-content">
+          <div class="message-text">${text.replace(/\n/g, "<br>")}</div>
+          <div class="message-timestamp">${formatTimestamp(new Date())}</div>
+        </div>
+      `;
+      elements.chatMessages.appendChild(messageDiv);
+      elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+    }
+
+    // 下载相关函数
+    function downloadFile() {
+      if (!currentSessionId || !currentFileId) {
+        addMessage("下载信息不完整，请重新生成用例文件。", "ai");
+        return;
+      }
+
+      try {
+        // 模拟下载操作
+        console.log('模拟下载文件:', `test_cases_${new Date().toISOString().slice(0, 10)}.xml`);
+        alert('模拟下载成功！');
+      } catch (error) {
+        console.error('下载失败:', error);
+        addMessage("下载失败，请稍后重试。", "ai");
+      }
+    }
+
+    function createDownloadCard(fileName = null, fileSize = null) {
+      const defaultFileName = fileName || `test_cases_${new Date().toISOString().slice(0, 10)}.xml`;
+      const defaultFileSize = fileSize || "2.3 KB";
+      
+      const downloadCardHtml = `
+        <div class="download-card" id="downloadCard">
+          <div class="download-card-header">
+            <div class="download-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+            </div>
+            <div class="download-info">
+              <h4>测试用例文件已生成</h4>
+              <span class="file-details">${defaultFileName} (${defaultFileSize})</span>
+            </div>
+          </div>
+          <button class="download-button" id="downloadFileBtn">
+            <svg class="download-btn-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <span>下载文件</span>
+          </button>
+        </div>
+      `;
+      
+      return downloadCardHtml;
+    }
+
+    function addDownloadCard(fileName = null, fileSize = null) {
+      const cardHtml = createDownloadCard(fileName, fileSize);
+      
+      const messageDiv = document.createElement("div");
+      messageDiv.className = "message ai-message";
+      messageDiv.innerHTML = `
+        <div class="message-avatar">Agent</div>
+        <div class="message-content">
+          <div class="message-text">用例文件生成完成！点击下方卡片下载文件。</div>
+          <div class="message-timestamp">${formatTimestamp(new Date())}</div>
+          ${cardHtml}
+        </div>
+      `;
+      
+      elements.chatMessages.appendChild(messageDiv);
+      elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+      
+      // 绑定下载按钮事件
+      const downloadBtn = messageDiv.querySelector('#downloadFileBtn');
+      if (downloadBtn) {
+        downloadBtn.addEventListener('click', handleDownloadClick);
+      }
+      
+      return messageDiv;
+    }
+
+    function handleDownloadClick() {
+      try {
+        downloadFile();
+        showDownloadFeedback();
+      } catch (error) {
+        console.error('下载卡片点击处理失败:', error);
+        addMessage("下载操作失败，请稍后重试。", "ai");
+      }
+    }
+
+    function showDownloadFeedback() {
+      const feedbackDiv = document.createElement("div");
+      feedbackDiv.className = "message ai-message";
+      feedbackDiv.innerHTML = `
+        <div class="message-avatar">Agent</div>
+        <div class="message-content">
+          <div class="message-text">文件下载已开始！</div>
+          <div class="message-timestamp">${formatTimestamp(new Date())}</div>
+        </div>
+      `;
+      
+      elements.chatMessages.appendChild(feedbackDiv);
+      elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+    }
+
+    // 测试按钮事件
+    document.getElementById('testNormalDownload').addEventListener('click', function() {
+      addMessage("开始测试正常下载流程...", "ai");
+      setTimeout(() => {
+        addDownloadCard();
+      }, 500);
+    });
+
+    document.getElementById('testErrorDownload').addEventListener('click', function() {
+      addMessage("开始测试错误下载流程...", "ai");
+      // 临时清空session和file ID来模拟错误
+      const originalSessionId = currentSessionId;
+      const originalFileId = currentFileId;
+      currentSessionId = null;
+      currentFileId = null;
+      
+      setTimeout(() => {
+        addDownloadCard();
+        // 恢复原始值
+        currentSessionId = originalSessionId;
+        currentFileId = originalFileId;
+      }, 500);
+    });
+
+    document.getElementById('testChatInput').addEventListener('click', function() {
+      addMessage("测试聊天输入功能是否正常工作。请在下方输入框中输入消息并发送。", "ai");
+    });
+
+    // 聊天输入功能
+    elements.sendBtn.addEventListener('click', function() {
+      const message = elements.chatInput.value.trim();
+      if (message) {
+        addMessage(message, "user");
+        elements.chatInput.value = '';
+        
+        // 模拟AI回复
+        setTimeout(() => {
+          addMessage("收到您的消息：" + message, "ai");
+        }, 500);
+      }
+    });
+
+    elements.chatInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        elements.sendBtn.click();
+      }
+    });
+
+    // 初始化时显示欢迎消息
+    window.addEventListener('load', function() {
+      addMessage("欢迎测试集成下载功能！这个测试验证：\n1. 下载卡片在聊天中正确显示\n2. 聊天输入功能保持可用\n3. 错误处理正常工作\n4. 下载反馈正确显示", "ai");
+    });
+  </script>
+</body>
+</html>

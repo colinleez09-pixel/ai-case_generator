@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>最终可访问性测试</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f8fafc;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .test-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    .test-section {
+      margin-bottom: 32px;
+      padding: 20px;
+      border: 1px solid #e8ecef;
+      border-radius: 8px;
+    }
+    .test-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 16px;
+    }
+    .test-description {
+      color: #5d6d7e;
+      margin-bottom: 16px;
+    }
+    .keyboard-hint {
+      background: #f0f7ff;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      color: #3a7cbd;
+      margin-bottom: 16px;
+    }
+    .message {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .message-avatar {
+      min-width: 42px;
+      height: 36px;
+      padding: 0 8px;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, #5a7a9a 0%, #7a9ab8 100%);
+      color: white;
+    }
+    .message-content {
+      flex: none;
+      max-width: 70%;
+      background: #f8f9fa;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      color: #2c3e50;
+    }
+    .message-text {
+      margin-bottom: 4px;
+    }
+    .message-timestamp {
+      font-size: 11px;
+      opacity: 0.7;
+      text-align: right;
+      margin-top: 4px;
+      color: #7f8c8d;
+    }
+    /* 复制主要样式 */
+    .tips-card {
+      background: linear-gradient(135deg, #f0f7ff 0%, #e8f4fd 100%);
+      border: 1px solid #cce4f7;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .tips-card.collapsible .tips-header {
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s ease;
+      border-radius: 8px;
+    }
+    .tips-card.collapsible .tips-header:hover {
+      background: rgba(58, 124, 189, 0.1);
+      padding: 4px 8px;
+      margin: -4px -8px;
+    }
+    .tips-card.collapsible .tips-header:focus {
+      outline: 2px solid #5a7a9a;
+      outline-offset: 2px;
+    }
+    .tips-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #3a7cbd;
+      margin-bottom: 12px;
+      justify-content: space-between;
+    }
+    .tips-header .expand-icon {
+      transition: transform 0.3s ease;
+      flex-shrink: 0;
+    }
+    .tips-card.collapsed .expand-icon {
+      transform: rotate(-90deg);
+    }
+    .tips-content {
+      overflow: hidden;
+      transition: max-height 0.3s ease, opacity 0.2s ease;
+    }
+    .tips-card.collapsed .tips-content {
+      max-height: 0;
+      opacity: 0;
+      margin-bottom: 0;
+    }
+    .tips-card:not(.collapsed) .tips-content {
+      max-height: 500px;
+      opacity: 1;
+    }
+    .tips-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .tips-list li {
+      font-size: 13px;
+      color: #4a6d8c;
+      padding: 6px 0;
+      border-bottom: 1px dashed #cce4f7;
+    }
+    .tips-list li:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .download-card {
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      border: 1px solid #bae6fd;
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 8px;
+    }
+    .download-card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .download-icon {
+      width: 32px;
+      height: 32px;
+      background: #0ea5e9;
+      color: white;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .download-info h4 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #0c4a6e;
+      margin: 0 0 4px 0;
+    }
+    .file-details {
+      font-size: 12px;
+      color: #0369a1;
+    }
+    .download-button {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: #0ea5e9;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .download-button:hover {
+      background: #0284c7;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+    }
+    .download-button:focus {
+      outline: 2px solid #0ea5e9;
+      outline-offset: 2px;
+    }
+    .download-button:active {
+      transform: translateY(0);
+    }
+    .download-btn-icon {
+      width: 16px;
+      height: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="test-container">
+    <h1>前端改进最终可访问性测试</h1>
+    <p>测试所有可访问性功能是否正常工作，包括键盘导航和屏幕阅读器支持。</p>
+
+    <!-- 测试1: 可折叠说明面板 -->
+    <div class="test-section">
+      <div class="test-title">测试1: 可折叠操作说明面板</div>
+      <div class="test-description">测试说明面板的键盘导航和可访问性属性</div>
+      <div class="keyboard-hint">
+        <strong>键盘测试:</strong> 使用 Tab 键导航到说明面板，按 Enter 或空格键切换展开/折叠状态
+      </div>
+      
+      <div class="tips-card collapsible collapsed" id="testInstructionsCard">
+        <div class="tips-header clickable" id="testInstructionsHeader" 
+             role="button" 
+             tabindex="0" 
+             aria-expanded="false" 
+             aria-controls="testInstructionsContent"
+             aria-label="切换操作说明显示">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          <span>操作说明</span>
+          <svg class="expand-icon" id="testInstructionsExpandIcon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </div>
+        <div class="tips-content" id="testInstructionsContent" aria-hidden="true">
+          <ul class="tips-list">
+            <li>1. 可选上传历史用例文件作为参考</li>
+            <li>2. 上传需要生成的用例模板文件（必填）</li>
+            <li>3. 选择对应的接口文档版本</li>
+            <li>4. 点击"开始生成"按钮启动 AI 生成</li>
+            <li>5. 在右侧对话框中与 AI 交互优化用例</li>
+            <li>6. 生成完成后可查看详情并下载</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- 测试2: 消息时间戳 -->
+    <div class="test-section">
+      <div class="test-title">测试2: 消息时间戳显示</div>
+      <div class="test-description">验证消息时间戳的正确显示和格式</div>
+      
+      <div class="message">
+        <div class="message-avatar">Agent</div>
+        <div class="message-content">
+          <div class="message-text">欢迎使用AI辅助测试用例生成工具！我将帮助您生成高质量的测试用例。</div>
+          <div class="message-timestamp">14:30</div>
+        </div>
+      </div>
+      
+      <div class="message">
+        <div class="message-avatar">Agent</div>
+        <div class="message-content">
+          <div class="message-text">用例文件生成完成！点击下方卡片下载文件。</div>
+          <div class="message-timestamp">14:32</div>
+          
+          <!-- 测试3: 下载卡片可访问性 -->
+          <div class="download-card" role="region" aria-label="文件下载卡片">
+            <div class="download-card-header">
+              <div class="download-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+              </div>
+              <div class="download-info">
+                <h4 id="test-download-title">测试用例文件已生成</h4>
+                <span class="file-details" aria-describedby="test-download-title">test_cases_2026-01-08.xml (2.3 KB)</span>
+              </div>
+            </div>
+            <button class="download-button" id="testDownloadBtn" 
+                    aria-label="下载测试用例文件 test_cases_2026-01-08.xml" 
+                    title="点击下载 test_cases_2026-01-08.xml">
+              <svg class="download-btn-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span>下载文件</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 测试3: 下载卡片键盘导航 -->
+    <div class="test-section">
+      <div class="test-title">测试3: 下载卡片键盘导航</div>
+      <div class="test-description">测试下载按钮的键盘可访问性</div>
+      <div class="keyboard-hint">
+        <strong>键盘测试:</strong> 使用 Tab 键导航到下载按钮，按 Enter 或空格键触发下载
+      </div>
+      <p>下载按钮已包含在上方的消息示例中，请使用键盘导航进行测试。</p>
+    </div>
+  </div>
+
+  <script>
+    // 复制主要的JavaScript功能
+    function toggleInstructions() {
+      const card = document.getElementById('testInstructionsCard');
+      const header = document.getElementById('testInstructionsHeader');
+      const content = document.getElementById('testInstructionsContent');
+      const icon = document.getElementById('testInstructionsExpandIcon');
+      
+      const isCollapsed = card.classList.contains('collapsed');
+      
+      if (isCollapsed) {
+        card.classList.remove('collapsed');
+        header.setAttribute('aria-expanded', 'true');
+        content.setAttribute('aria-hidden', 'false');
+        console.log('说明面板已展开');
+      } else {
+        card.classList.add('collapsed');
+        header.setAttribute('aria-expanded', 'false');
+        content.setAttribute('aria-hidden', 'true');
+        console.log('说明面板已折叠');
+      }
+    }
+
+    function handleInstructionsKeydown(event) {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        toggleInstructions();
+      }
+    }
+
+    function handleDownloadClick() {
+      console.log('下载按钮被点击');
+      alert('模拟下载：test_cases_2026-01-08.xml');
+    }
+
+    function handleDownloadKeydown(event) {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        handleDownloadClick();
+      }
+    }
+
+    // 绑定事件监听器
+    document.addEventListener('DOMContentLoaded', function() {
+      const instructionsHeader = document.getElementById('testInstructionsHeader');
+      const downloadBtn = document.getElementById('testDownloadBtn');
+      
+      if (instructionsHeader) {
+        instructionsHeader.addEventListener('click', toggleInstructions);
+        instructionsHeader.addEventListener('keydown', handleInstructionsKeydown);
+      }
+      
+      if (downloadBtn) {
+        downloadBtn.addEventListener('click', handleDownloadClick);
+        downloadBtn.addEventListener('keydown', handleDownloadKeydown);
+      }
+      
+      console.log('可访问性测试页面已加载完成');
+      console.log('测试说明：');
+      console.log('1. 使用 Tab 键在页面元素间导航');
+      console.log('2. 在说明面板上按 Enter 或空格键切换展开/折叠');
+      console.log('3. 在下载按钮上按 Enter 或空格键触发下载');
+      console.log('4. 检查所有交互元素都有适当的焦点指示器');
+    });
+  </script>
+</body>
+</html>

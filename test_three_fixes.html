@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三个问题修复测试</title>
+    <link rel="stylesheet" href="static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>三个问题修复测试</h1>
+        
+        <div class="test-section">
+            <h2>问题1测试：按钮状态管理</h2>
+            <button onclick="testButtonStateUpdate()" class="action-btn primary">测试按钮状态更新</button>
+            <div id="buttonStateResult"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>问题2测试：409错误消息优化</h2>
+            <button onclick="testErrorMessage()" class="action-btn primary">测试409错误消息</button>
+            <div id="errorMessageResult"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>问题3测试：重新生成按钮响应</h2>
+            <button onclick="testRegeneration()" class="action-btn primary">测试重新生成</button>
+            <div id="regenerationResult"></div>
+        </div>
+        
+        <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                <div class="message ai-message">
+                    <div class="message-avatar">Agent</div>
+                    <div class="message-content">
+                        <div class="message-text">测试环境已准备就绪。</div>
+                        <div class="message-timestamp">12:00:00</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chat-input-area" id="chatInputArea">
+                <input type="text" id="chatInput" placeholder="输入消息测试..." />
+                <button id="sendBtn" class="action-btn primary">发送</button>
+            </div>
+        </div>
+        
+        <div class="debug-info">
+            <h3>调试信息</h3>
+            <div id="debugOutput"></div>
+        </div>
+    </div>
+
+    <script src="static/script.js"></script>
+    <script>
+        // 模拟全局变量
+        let currentSessionId = 'test_session_123';
+        let isGenerating = false;
+        let generationComplete = false;
+        let canDownload = false;
+        let currentFileId = null;
+        let testCases = [];
+        const API_BASE_URL = '/api';
+        
+        // 模拟API响应
+        window.fetch = async function(url, options) {
+            console.log('模拟API调用:', url, options);
+            
+            if (url.includes('/api/chat/send')) {
+                // 模拟409错误
+                if (options.body && JSON.parse(options.body).message === 'test409') {
+                    const error = new Error('当前会话状态(finalized)不支持对话');
+                    throw error;
+                }
+                
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        message: '收到消息',
+                        ready_to_generate: false
+                    })
+                };
+            }
+            
+            if (url.includes('/api/generation/finalize')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        file_id: 'test_file_123'
+                    })
+                };
+            }
+            
+            return { ok: false, status: 404 };
+        };
+        
+        function testButtonStateUpdate() {
+            updateDebugInfo('测试按钮状态更新...');
+            
+            // 模拟生成完成
+            updateAllGenerateButtonsToCompleted();
+            
+            // 检查按钮状态
+            const generateBtn = document.getElementById('generateBtn');
+            if (generateBtn) {
+                const result = `主按钮状态: ${generateBtn.textContent}, 禁用: ${generateBtn.disabled}`;
+                document.getElementById('buttonStateResult').innerHTML = result;
+                updateDebugInfo('按钮状态测试完成: ' + result);
+            } else {
+                updateDebugInfo('未找到主生成按钮');
+            }
+        }
+        
+        async function testErrorMessage() {
+            updateDebugInfo('测试409错误消息...');
+            
+            // 模拟发送会导致409错误的消息
+            const chatInput = document.getElementById('chatInput');
+            chatInput.value = 'test409';
+            
+            try {
+                await sendMessage();
+                updateDebugInfo('错误消息测试完成');
+            } catch (error) {
+                updateDebugInfo('错误消息测试异常: ' + error.message);
+            }
+        }
+        
+        function testRegeneration() {
+            updateDebugInfo('测试重新生成功能...');
+            
+            // 重置所有状态
+            resetAllStatesForNewGeneration();
+            
+            // 显示生成按钮
+            showGenerateButton();
+            
+            updateDebugInfo('重新生成测试完成，请查看聊天区域中的按钮');
+        }
+        
+        function updateDebugInfo(message) {
+            const debugOutput = document.getElementById('debugOutput');
+            const timestamp = new Date().toLocaleTimeString();
+            debugOutput.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            debugOutput.scrollTop = debugOutput.scrollHeight;
+        }
+        
+        // 监听控制台日志
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            updateDebugInfo('LOG: ' + args.join(' '));
+        };
+        
+        const originalError = console.error;
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            updateDebugInfo('ERROR: ' + args.join(' '));
+        };
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            updateDebugInfo('测试页面已加载');
+            
+            // 确保DOM元素存在
+            if (!elements.chatMessages) {
+                elements.chatMessages = document.getElementById('chatMessages');
+            }
+            if (!elements.chatInput) {
+                elements.chatInput = document.getElementById('chatInput');
+            }
+            if (!elements.sendBtn) {
+                elements.sendBtn = document.getElementById('sendBtn');
+            }
+            
+            // 绑定发送按钮事件
+            if (elements.sendBtn) {
+                elements.sendBtn.addEventListener('click', sendMessage);
+            }
+            if (elements.chatInput) {
+                elements.chatInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') sendMessage();
+                });
+            }
+        });
+    </script>
+    
+    <style>
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        
+        .test-section h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        
+        .test-section button {
+            margin: 10px 0;
+        }
+        
+        .debug-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+        
+        #debugOutput {
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        #debugOutput div {
+            margin: 2px 0;
+            padding: 2px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .chat-container {
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        
+        .chat-messages {
+            height: 200px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .chat-input-area {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .chat-input-area input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</body>
+</html>
