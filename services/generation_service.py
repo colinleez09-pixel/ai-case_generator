@@ -56,7 +56,7 @@ class GenerationService:
     
     async def _start_generation_task_async(self, files: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         """
-        启动生成任务 - 异步实现
+        启动生成任务 - 异步实现，支持进度反馈
         
         Args:
             files: 上传的文件字典 {file_type: FileStorage}
@@ -65,13 +65,26 @@ class GenerationService:
         Returns:
             Dict[str, Any]: 启动结果
         """
+        progress_callback = config.get('progress_callback')
+        
         try:
+            # 发送进度更新 - 开始处理
+            if progress_callback:
+                progress_callback('UPLOADING', '正在上传文件...', 10)
+            
             # 1. 创建新会话
             session_id = self.session_service.create_session()
             logger.info(f"创建生成会话: {session_id}")
             
+            # 发送进度更新 - 文件上传中
+            if progress_callback:
+                progress_callback('UPLOADING', '正在保存上传的文件...', 20)
+            
             # 2. 保存上传的文件
             files_info = {}
+            total_files = len([f for f in files.values() if f and f.filename])
+            processed_files = 0
+            
             for file_type, file_storage in files.items():
                 if file_storage and file_storage.filename:
                     try:
@@ -79,6 +92,13 @@ class GenerationService:
                             file_storage, session_id, file_type
                         )
                         files_info[file_type] = file_info
+                        processed_files += 1
+                        
+                        # 更新文件上传进度
+                        if progress_callback:
+                            progress = 20 + (processed_files / total_files) * 20  # 20-40%
+                            progress_callback('UPLOADING', f'已保存文件: {file_storage.filename}', progress)
+                        
                         logger.info(f"保存文件成功: {file_type} -> {file_info['file_id']}")
                     except Exception as e:
                         logger.error(f"保存文件失败: {file_type}, {e}")
@@ -99,10 +119,19 @@ class GenerationService:
                     'message': '缺少必需的用例模板文件'
                 }
             
+            # 发送进度更新 - 开始解析文件
+            if progress_callback:
+                progress_callback('PARSING', '正在解析用例文件...', 50)
+            
             # 3. 分析上传的文件（但不发送给Dify，避免重复调用）
             try:
                 analysis_result = self.ai_service.analyze_files(files_info, skip_dify_call=True)
                 logger.info(f"文件分析完成（跳过Dify调用）: {session_id}")
+                
+                # 发送进度更新 - 文件解析完成
+                if progress_callback:
+                    progress_callback('PARSING', '文件解析完成', 60)
+                    
             except Exception as e:
                 logger.error(f"文件分析失败: {session_id}, {e}")
                 analysis_result = {
@@ -110,6 +139,10 @@ class GenerationService:
                     'history_info': '',
                     'suggestions': ['请描述您的测试需求']
                 }
+            
+            # 发送进度更新 - 准备连接AI服务
+            if progress_callback:
+                progress_callback('CONNECTING', '正在连接AI服务...', 70)
             
             # 4. 更新会话数据
             session_data = {
@@ -132,6 +165,10 @@ class GenerationService:
             # 5. 构建初始消息
             initial_message = self._build_initial_message(analysis_result)
             
+            # 发送进度更新 - 开始分析内容
+            if progress_callback:
+                progress_callback('ANALYZING', '正在分析用例内容...', 80)
+            
             # 新增：自动解析并发送给AI (新增功能)
             logger.info(f"检查自动分析条件: analysis_result.success = {analysis_result.get('success', True)}")
             if analysis_result.get('success', True):
@@ -145,6 +182,10 @@ class GenerationService:
                     analysis_result['description'] = extracted_content
                     analysis_result['extracted_content'] = extracted_content
                     
+                    # 发送进度更新 - AI正在思考
+                    if progress_callback:
+                        progress_callback('THINKING', 'AI正在思考中，请稍候...', 90)
+                    
                     auto_analysis_result = await self.auto_analyze_and_chat(session_id, files_info)
                     logger.info(f"自动分析结果: success={auto_analysis_result.get('success')}")
                     
@@ -156,6 +197,11 @@ class GenerationService:
                             'dify_conversation_id': auto_analysis_result.get('conversation_id'),
                             'extracted_content': extracted_content
                         })
+                        
+                        # 发送进度更新 - 完成
+                        if progress_callback:
+                            progress_callback('COMPLETED', '分析完成，可以开始对话', 100)
+                        
                         logger.info(f"自动分析完成: {session_id}")
                         return {
                             'success': True,
@@ -174,6 +220,10 @@ class GenerationService:
                     logger.error(f"异常详情: {traceback.format_exc()}")
             else:
                 logger.info(f"跳过自动分析: analysis_result.success = {analysis_result.get('success')}")
+            
+            # 发送进度更新 - 完成
+            if progress_callback:
+                progress_callback('COMPLETED', '文件处理完成', 100)
             
             # 原有返回逻辑保持不变
             return {

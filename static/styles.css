@@ -792,6 +792,428 @@ body {
   transition: width 0.3s ease;
 }
 
+/* 增强进度指示器样式 */
+.enhanced-progress-indicator {
+  padding: 16px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  position: relative;
+  overflow: hidden;
+}
+
+.enhanced-progress-indicator::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.5), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+.progress-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.progress-icon {
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.progress-stage-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  letter-spacing: 0.025em;
+}
+
+.progress-message {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.progress-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: progress-shine 1.5s infinite;
+}
+
+@keyframes progress-shine {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.progress-percentage {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  min-width: 35px;
+  text-align: right;
+}
+
+.progress-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.spinner-ring {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #e5e7eb;
+  border-top: 2px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 错误指示器样式 */
+.error-indicator {
+  padding: 16px;
+  background: linear-gradient(135deg, #fef2f2 0%, #fdf2f8 100%);
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.error-icon {
+  font-size: 20px;
+  color: #ef4444;
+}
+
+.error-message {
+  flex: 1;
+  font-size: 13px;
+  color: #dc2626;
+  line-height: 1.5;
+}
+
+.retry-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.retry-button:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
+}
+
+.retry-button:active {
+  transform: translateY(0);
+}
+
+.retry-icon {
+  font-size: 14px;
+  animation: rotate-on-hover 0.3s ease;
+}
+
+.retry-button:hover .retry-icon {
+  animation: spin 0.5s ease-in-out;
+}
+
+/* 流式消息显示样式 */
+.streaming-message-container .message-content {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.streaming-message-display {
+  background: white;
+  border: 1px solid #e8ecef;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  position: relative;
+}
+
+.streaming-content {
+  position: relative;
+  min-height: 20px;
+}
+
+.streaming-text {
+  display: inline;
+  line-height: 1.6;
+  word-wrap: break-word;
+}
+
+.typing-cursor {
+  display: inline-block;
+  font-weight: bold;
+  color: #5a7a9a;
+  animation: blink 1s infinite;
+  margin-left: 2px;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.streaming-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.streaming-message-display:hover .streaming-controls {
+  opacity: 1;
+}
+
+.streaming-control-btn {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #e8ecef;
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  backdrop-filter: blur(4px);
+}
+
+.streaming-control-btn:hover {
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.streaming-control-btn:active {
+  transform: translateY(0);
+}
+
+/* 流式消息状态指示器 */
+.streaming-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #7f8c8d;
+  margin-top: 8px;
+  padding: 4px 8px;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.streaming-status.active {
+  color: #5a7a9a;
+  background: #e8f4fd;
+}
+
+.streaming-status.paused {
+  color: #f39c12;
+  background: #fef9e7;
+}
+
+.streaming-status.completed {
+  color: #27ae60;
+  background: #eafaf1;
+}
+
+.streaming-status.error {
+  color: #e74c3c;
+  background: #fdf2f2;
+}
+
+/* 流式消息动画效果 */
+.streaming-message-display.streaming {
+  border-color: #5a7a9a;
+  box-shadow: 0 2px 8px rgba(90, 122, 154, 0.15);
+}
+
+.streaming-message-display.completed {
+  border-color: #27ae60;
+  box-shadow: 0 2px 8px rgba(39, 174, 96, 0.1);
+}
+
+.streaming-message-display.error {
+  border-color: #e74c3c;
+  box-shadow: 0 2px 8px rgba(231, 76, 60, 0.1);
+}
+
+.streaming-message-display {
+  position: relative;
+  padding: 16px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.streaming-content {
+  position: relative;
+  line-height: 1.6;
+  font-size: 14px;
+  color: #2c3e50;
+  min-height: 20px;
+}
+
+.streaming-text {
+  display: inline;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.typing-cursor {
+  display: inline-block;
+  font-weight: bold;
+  color: #5a7a9a;
+  animation: cursor-blink 1s infinite;
+  margin-left: 1px;
+}
+
+@keyframes cursor-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.streaming-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.streaming-message-display:hover .streaming-controls {
+  opacity: 1;
+}
+
+.streaming-control-btn {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+
+.streaming-control-btn:hover {
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.streaming-control-btn:active {
+  transform: translateY(0);
+}
+
+/* 流式消息状态指示 */
+.streaming-message-display.paused::before {
+  content: '⏸️ 已暂停';
+  position: absolute;
+  top: -8px;
+  left: 16px;
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: #856404;
+  z-index: 10;
+}
+
+.streaming-message-display.completed::after {
+  content: '';
+  position: absolute;
+  bottom: 8px;
+  right: 12px;
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+/* 消息容器样式增强 */
+.progress-message-container .message-content {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+.error-message-container .message-content {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
 /* 聊天中的操作按钮区域 */
 .chat-action-buttons {
   display: flex;

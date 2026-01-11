@@ -8,6 +8,9 @@ let isGenerating = false;
 let instructionsExpanded = false; // 说明面板展开状态，默认折叠
 let isFirstGeneration = true; // 跟踪是否是第一次生成
 
+// 流式消息显示实例
+let globalStreamingDisplay = null;
+
 // 时间戳格式化函数
 function formatTimestamp(date) {
   const now = new Date();
@@ -62,8 +65,8 @@ function initializeChatState() {
     // 清空聊天消息并显示初始消息
     if (elements.chatMessages) {
         elements.chatMessages.innerHTML = '';
-        // 显示初始消息，提示用户先上传文件
-        addMessage("你好！我是 AI 测试用例生成助手。请先在左侧上传您的用例模板文件并点击\"开始生成\"，然后我们就可以开始对话来生成完整的测试用例了。", "ai");
+        // 显示初始消息，提示用户先上传文件，使用流式效果
+        addMessage("你好！我是 AI 测试用例生成助手。请先在左侧上传您的用例模板文件并点击\"开始生成\"，然后我们就可以开始对话来生成完整的测试用例了。", "ai", null, true);
     }
 }
 
@@ -953,8 +956,11 @@ async function startGeneration() {
 
   hideActionButtons()
 
-  // 显示加载指示器
-  const loadingId = showLoadingIndicator("正在上传文件并分析...");
+  // 创建进度指示器实例
+  const progressIndicator = new ProgressIndicator();
+  
+  // 显示上传阶段
+  progressIndicator.showStage('UPLOADING');
 
   // 禁用生成按钮并显示生成中状态
   elements.generateBtn.disabled = true
@@ -964,44 +970,49 @@ async function startGeneration() {
   enableChatInput()
   isGenerating = true
 
-  try {
-    // 准备文件数据
-    const formData = new FormData();
-    
-    // 添加必需的用例模板文件
-    const caseFile = elements.caseFileInput.files[0];
-    if (caseFile) {
-      formData.append('case_template', caseFile);
-    }
-    
-    // 添加可选的历史用例文件
-    if (elements.historyCheckbox.checked && elements.historyFileInput.files[0]) {
-      formData.append('history_case', elements.historyFileInput.files[0]);
-    }
-    
-    // 添加可选的AW模板文件
-    if (elements.awCheckbox.checked && elements.awFileInput.files[0]) {
-      formData.append('aw_template', elements.awFileInput.files[0]);
-    }
-    
-    // 添加配置信息
-    const config = {
-      api_version: document.getElementById("apiVersionSelect").value
-    };
-    formData.append('config', JSON.stringify(config));
+  // 准备文件数据（移到函数顶部，避免作用域问题）
+  const formData = new FormData();
+  
+  // 添加必需的用例模板文件
+  const caseFile = elements.caseFileInput.files[0];
+  if (caseFile) {
+    formData.append('case_template', caseFile);
+  }
+  
+  // 添加可选的历史用例文件
+  if (elements.historyCheckbox.checked && elements.historyFileInput.files[0]) {
+    formData.append('history_case', elements.historyFileInput.files[0]);
+  }
+  
+  // 添加可选的AW模板文件
+  if (elements.awCheckbox.checked && elements.awFileInput.files[0]) {
+    formData.append('aw_template', elements.awFileInput.files[0]);
+  }
+  
+  // 添加配置信息
+  const config = {
+    api_version: document.getElementById("apiVersionSelect").value
+  };
+  formData.append('config', JSON.stringify(config));
 
+  try {
     // 根据是否是第一次生成来决定是否清空聊天记录
     if (isFirstGeneration) {
       // 第一次生成：清空聊天记录
       elements.chatMessages.innerHTML = '';
-      isFirstGeneration = false;
     } else {
       // 后续生成：保留对话历史，添加会话分隔符
       addSessionSeparator();
     }
     
-    // 更新加载消息
-    updateLoadingMessage(loadingId, "正在连接AI服务...");
+    // 更新进度到解析阶段
+    progressIndicator.showStage('PARSING');
+    
+    // 模拟文件处理进度
+    await simulateProgress(progressIndicator, 'PARSING', 1000);
+    
+    // 更新进度到连接阶段
+    progressIndicator.showStage('CONNECTING');
     
     // 调用后台API开始生成任务
     const response = await fetch(`${API_BASE_URL}/generation/start`, {
@@ -1011,11 +1022,11 @@ async function startGeneration() {
     
     const result = await response.json();
     
-    // 隐藏加载指示器
-    hideLoadingIndicator(loadingId);
-    
     if (result.success) {
       currentSessionId = result.session_id;
+      
+      // 更新进度到分析阶段
+      progressIndicator.showStage('ANALYZING');
       
       // 显示响应时间信息（如果有）
       if (result.response_time) {
@@ -1027,8 +1038,23 @@ async function startGeneration() {
         }
       }
       
+      // 如果有自动分析，显示思考阶段
+      if (result.auto_chat_started) {
+        progressIndicator.showStage('THINKING');
+        
+        // 模拟AI思考过程
+        await simulateProgress(progressIndicator, 'THINKING', 1500);
+      }
+      
+      // 隐藏进度指示器
+      progressIndicator.hide();
+      
       // 处理自动分析结果
       await handleUploadComplete(result);
+      
+      // 标记不再是第一次生成
+      isFirstGeneration = false;
+      
     } else {
       throw new Error(result.message || '启动生成任务失败');
     }
@@ -1036,20 +1062,36 @@ async function startGeneration() {
   } catch (error) {
     console.error('启动生成失败:', error);
     
-    // 隐藏加载指示器
-    hideLoadingIndicator(loadingId);
-    
-    // 显示友好的错误消息
-    showFriendlyError(error.message, {
-      showSuggestions: true,
-      showRetryButton: true,
-      retryAction: () => startGeneration()
-    });
+    // 显示错误状态
+    progressIndicator.showError(
+      `启动失败: ${error.message}`,
+      () => startGeneration()
+    );
     
     // 恢复UI状态
     resetGenerateButtonState();
     disableChatInput();
     isGenerating = false;
+  }
+}
+
+/**
+ * 模拟进度更新
+ * @param {ProgressIndicator} progressIndicator - 进度指示器实例
+ * @param {string} stage - 当前阶段
+ * @param {number} duration - 持续时间(ms)
+ */
+async function simulateProgress(progressIndicator, stage, duration) {
+  const steps = 20;
+  const stepDuration = duration / steps;
+  
+  for (let i = 0; i <= steps; i++) {
+    const progress = (i / steps) * 100;
+    progressIndicator.updateProgress(progress);
+    
+    if (i < steps) {
+      await new Promise(resolve => setTimeout(resolve, stepDuration));
+    }
   }
 }
 
@@ -1081,9 +1123,9 @@ async function handleUploadComplete(response) {
         addMessage(`我上传了用例文件：${uploadedFileName}`, "user");
       }
       
-      // 显示AI的回复（Dify的响应）
+      // 显示AI的回复（Dify的响应），使用流式效果
       if (response.message) {
-        addMessage(response.message, "ai");
+        addMessage(response.message, "ai", null, true);
       }
       
     } else {
@@ -1093,13 +1135,15 @@ async function handleUploadComplete(response) {
         addMessage(`我上传了用例文件：${uploadedFileName}`, "user");
       }
       
-      // 显示默认的AI回复
+      // 显示默认的AI回复，使用流式效果
       if (response.analysis_result) {
-        addMessage(response.analysis_result, "ai");
+        addMessage(response.analysis_result, "ai", null, true);
       } else {
         addMessage(
           "我已经收到了您的用例文件。为了生成更准确的测试用例，请问：\n\n1. 这个系统主要的用户群体是谁？\n2. 是否有特殊的安全性要求？",
-          "ai"
+          "ai",
+          null,
+          true
         );
       }
     }
@@ -1112,7 +1156,7 @@ async function handleUploadComplete(response) {
     if (uploadedFileName) {
       addMessage(`我上传了用例文件：${uploadedFileName}`, "user");
     }
-    addMessage("文件上传成功，请开始与AI对话来生成测试用例。", "ai");
+    addMessage("文件上传成功，请开始与AI对话来生成测试用例。", "ai", null, true);
   }
 }
 
@@ -1199,6 +1243,661 @@ function updateLoadingMessage(loadingId, message) {
       if (messageElement) {
         messageElement.textContent = message;
       }
+    }
+  }
+}
+
+/**
+ * 流式消息显示类 - 提供打字机效果的消息显示
+ */
+class StreamingMessageDisplay {
+  constructor(containerId = "chatMessages", options = {}) {
+    this.containerId = containerId;
+    this.currentMessageId = null;
+    this.isStreaming = false;
+    this.isPaused = false;
+    this.streamingQueue = [];
+    this.currentText = '';
+    this.displayedText = '';
+    this.typingTimer = null;
+    this.cursorTimer = null;
+    
+    // 配置选项
+    this.options = {
+      typingSpeed: 40,        // 每秒字符数
+      cursorBlinkRate: 500,   // 光标闪烁间隔(ms)
+      autoScroll: true,       // 自动滚动到最新消息
+      showCursor: true,       // 显示打字光标
+      allowSkip: true,        // 允许跳过动画
+      ...options
+    };
+    
+    // 流式状态
+    this.STATES = {
+      IDLE: 'idle',
+      STARTING: 'starting',
+      STREAMING: 'streaming',
+      PAUSED: 'paused',
+      COMPLETED: 'completed',
+      ERROR: 'error'
+    };
+    
+    this.currentState = this.STATES.IDLE;
+  }
+
+  /**
+   * 开始流式显示消息
+   * @param {string} messageId - 消息ID（可选，自动生成）
+   * @param {string} initialText - 初始文本（可选）
+   */
+  startStreaming(messageId = null, initialText = '') {
+    if (this.isStreaming) {
+      console.warn('已有流式消息在进行中');
+      return null;
+    }
+
+    this.currentMessageId = messageId || `streaming_${Date.now()}`;
+    this.currentText = initialText;
+    this.displayedText = '';
+    this.isStreaming = true;
+    this.isPaused = false;
+    this.currentState = this.STATES.STARTING;
+    
+    // 创建消息容器
+    this._createMessageContainer();
+    
+    // 开始光标闪烁
+    if (this.options.showCursor) {
+      this._startCursorBlink();
+    }
+    
+    this.currentState = this.STATES.STREAMING;
+    console.log(`🎬 开始流式显示: ${this.currentMessageId}`);
+    
+    return this.currentMessageId;
+  }
+
+  /**
+   * 追加文本到流式消息
+   * @param {string} text - 要追加的文本
+   */
+  appendText(text) {
+    if (!this.isStreaming || !this.currentMessageId) {
+      console.warn('没有活跃的流式消息');
+      return;
+    }
+
+    if (this.isPaused) {
+      // 如果暂停中，将文本加入队列
+      this.streamingQueue.push(text);
+      return;
+    }
+
+    this.currentText += text;
+    this._processTypingEffect();
+  }
+
+  /**
+   * 完成流式显示
+   */
+  finishStreaming() {
+    if (!this.isStreaming) {
+      return;
+    }
+
+    // 清除定时器
+    this._clearTimers();
+    
+    // 显示完整文本
+    this.displayedText = this.currentText;
+    this._updateMessageContent();
+    
+    // 移除光标
+    this._removeCursor();
+    
+    // 重置状态
+    this.isStreaming = false;
+    this.isPaused = false;
+    this.currentState = this.STATES.COMPLETED;
+    
+    console.log(`✅ 流式显示完成: ${this.currentMessageId}`);
+    
+    // 自动滚动
+    if (this.options.autoScroll) {
+      this._scrollToBottom();
+    }
+  }
+
+  /**
+   * 暂停流式显示
+   */
+  pauseStreaming() {
+    if (!this.isStreaming || this.isPaused) {
+      return;
+    }
+
+    this.isPaused = true;
+    this.currentState = this.STATES.PAUSED;
+    this._clearTimers();
+    
+    console.log(`⏸️ 暂停流式显示: ${this.currentMessageId}`);
+  }
+
+  /**
+   * 恢复流式显示
+   */
+  resumeStreaming() {
+    if (!this.isStreaming || !this.isPaused) {
+      return;
+    }
+
+    this.isPaused = false;
+    this.currentState = this.STATES.STREAMING;
+    
+    // 处理队列中的文本
+    while (this.streamingQueue.length > 0) {
+      const queuedText = this.streamingQueue.shift();
+      this.currentText += queuedText;
+    }
+    
+    // 恢复打字效果
+    this._processTypingEffect();
+    
+    // 恢复光标闪烁
+    if (this.options.showCursor) {
+      this._startCursorBlink();
+    }
+    
+    console.log(`▶️ 恢复流式显示: ${this.currentMessageId}`);
+  }
+
+  /**
+   * 跳过动画，直接显示完整内容
+   */
+  skipAnimation() {
+    if (!this.isStreaming || !this.options.allowSkip) {
+      return;
+    }
+
+    console.log(`⏭️ 跳过动画: ${this.currentMessageId}`);
+    this.finishStreaming();
+  }
+
+  /**
+   * 获取当前状态
+   */
+  getState() {
+    return {
+      state: this.currentState,
+      isStreaming: this.isStreaming,
+      isPaused: this.isPaused,
+      messageId: this.currentMessageId,
+      progress: this.currentText.length > 0 ? this.displayedText.length / this.currentText.length : 0
+    };
+  }
+
+  /**
+   * 创建消息容器
+   * @private
+   */
+  _createMessageContainer() {
+    const container = document.getElementById(this.containerId);
+    if (!container) {
+      console.error(`容器不存在: ${this.containerId}`);
+      return;
+    }
+
+    // 创建流式消息的HTML结构
+    const streamingHtml = `
+      <div class="streaming-message-display" id="${this.currentMessageId}">
+        <div class="streaming-content">
+          <span class="streaming-text"></span>
+          ${this.options.showCursor ? '<span class="typing-cursor">|</span>' : ''}
+        </div>
+        ${this.options.allowSkip ? `
+          <div class="streaming-controls">
+            <button class="streaming-control-btn pause-btn" title="暂停">⏸️</button>
+            <button class="streaming-control-btn skip-btn" title="跳过动画">⏭️</button>
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    // 创建完整的消息容器
+    const messageDiv = document.createElement("div");
+    messageDiv.className = "message ai-message streaming-message-container";
+    messageDiv.innerHTML = `
+      <div class="message-avatar">Agent</div>
+      <div class="message-content">
+        ${streamingHtml}
+      </div>
+    `;
+
+    container.appendChild(messageDiv);
+    
+    // 绑定控制按钮事件
+    if (this.options.allowSkip) {
+      this._bindControlEvents(messageDiv);
+    }
+    
+    // 自动滚动
+    if (this.options.autoScroll) {
+      this._scrollToBottom();
+    }
+  }
+
+  /**
+   * 绑定控制按钮事件
+   * @private
+   */
+  _bindControlEvents(messageDiv) {
+    const pauseBtn = messageDiv.querySelector('.pause-btn');
+    const skipBtn = messageDiv.querySelector('.skip-btn');
+    
+    if (pauseBtn) {
+      pauseBtn.addEventListener('click', () => {
+        if (this.isPaused) {
+          this.resumeStreaming();
+          pauseBtn.textContent = '⏸️';
+          pauseBtn.title = '暂停';
+        } else {
+          this.pauseStreaming();
+          pauseBtn.textContent = '▶️';
+          pauseBtn.title = '继续';
+        }
+      });
+    }
+    
+    if (skipBtn) {
+      skipBtn.addEventListener('click', () => {
+        this.skipAnimation();
+      });
+    }
+  }
+
+  /**
+   * 处理打字效果
+   * @private
+   */
+  _processTypingEffect() {
+    if (this.isPaused || !this.isStreaming) {
+      return;
+    }
+
+    const remainingText = this.currentText.slice(this.displayedText.length);
+    if (remainingText.length === 0) {
+      return;
+    }
+
+    // 计算打字间隔
+    const typingInterval = 1000 / this.options.typingSpeed;
+    
+    // 逐字显示
+    this.typingTimer = setTimeout(() => {
+      if (this.isPaused || !this.isStreaming) {
+        return;
+      }
+
+      // 添加下一个字符
+      this.displayedText = this.currentText.slice(0, this.displayedText.length + 1);
+      this._updateMessageContent();
+      
+      // 自动滚动
+      if (this.options.autoScroll) {
+        this._scrollToBottom();
+      }
+      
+      // 继续处理剩余文本
+      if (this.displayedText.length < this.currentText.length) {
+        this._processTypingEffect();
+      }
+    }, typingInterval);
+  }
+
+  /**
+   * 更新消息内容
+   * @private
+   */
+  _updateMessageContent() {
+    const messageElement = document.getElementById(this.currentMessageId);
+    if (!messageElement) {
+      return;
+    }
+
+    const textElement = messageElement.querySelector('.streaming-text');
+    if (textElement) {
+      // 处理换行和HTML转义
+      const formattedText = this.displayedText.replace(/\n/g, '<br>');
+      textElement.innerHTML = formattedText;
+    }
+  }
+
+  /**
+   * 开始光标闪烁
+   * @private
+   */
+  _startCursorBlink() {
+    const messageElement = document.getElementById(this.currentMessageId);
+    if (!messageElement) {
+      return;
+    }
+
+    const cursor = messageElement.querySelector('.typing-cursor');
+    if (!cursor) {
+      return;
+    }
+
+    this.cursorTimer = setInterval(() => {
+      if (cursor) {
+        cursor.style.opacity = cursor.style.opacity === '0' ? '1' : '0';
+      }
+    }, this.options.cursorBlinkRate);
+  }
+
+  /**
+   * 移除光标
+   * @private
+   */
+  _removeCursor() {
+    const messageElement = document.getElementById(this.currentMessageId);
+    if (!messageElement) {
+      return;
+    }
+
+    const cursor = messageElement.querySelector('.typing-cursor');
+    if (cursor) {
+      cursor.remove();
+    }
+  }
+
+  /**
+   * 清除定时器
+   * @private
+   */
+  _clearTimers() {
+    if (this.typingTimer) {
+      clearTimeout(this.typingTimer);
+      this.typingTimer = null;
+    }
+    
+    if (this.cursorTimer) {
+      clearInterval(this.cursorTimer);
+      this.cursorTimer = null;
+    }
+  }
+
+  /**
+   * 滚动到底部
+   * @private
+   */
+  _scrollToBottom() {
+    const container = document.getElementById(this.containerId);
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }
+}
+
+/**
+ * 进度指示器类 - 提供增强的进度显示功能
+ */
+class ProgressIndicator {
+  constructor(containerId = "chatMessages") {
+    this.containerId = containerId;
+    this.currentIndicatorId = null;
+    this.currentStage = null;
+    this.isVisible = false;
+    
+    // 进度阶段定义
+    this.STAGES = {
+      UPLOADING: { 
+        name: '上传文件', 
+        icon: '📤', 
+        message: '正在上传文件...',
+        color: '#3b82f6'
+      },
+      PARSING: { 
+        name: '解析文件', 
+        icon: '📋', 
+        message: '正在解析用例文件...',
+        color: '#8b5cf6'
+      },
+      CONNECTING: { 
+        name: '连接AI', 
+        icon: '🔗', 
+        message: '正在连接AI服务...',
+        color: '#06b6d4'
+      },
+      ANALYZING: { 
+        name: '分析内容', 
+        icon: '🤖', 
+        message: '正在分析用例内容...',
+        color: '#10b981'
+      },
+      THINKING: { 
+        name: 'AI思考', 
+        icon: '💭', 
+        message: 'AI正在思考中，请稍候...',
+        color: '#f59e0b'
+      },
+      STREAMING: {
+        name: '接收回复',
+        icon: '💬',
+        message: 'AI正在回复中...',
+        color: '#ef4444'
+      }
+    };
+  }
+
+  /**
+   * 显示特定阶段的进度
+   * @param {string} stageName - 阶段名称 (UPLOADING, PARSING, etc.)
+   * @param {string} customMessage - 自定义消息（可选）
+   * @param {number} progress - 进度百分比（可选，0-100）
+   */
+  showStage(stageName, customMessage = null, progress = null) {
+    const stage = this.STAGES[stageName];
+    if (!stage) {
+      console.error(`未知的进度阶段: ${stageName}`);
+      return;
+    }
+
+    const message = customMessage || stage.message;
+    this.currentStage = stageName;
+
+    if (this.isVisible && this.currentIndicatorId) {
+      // 更新现有指示器
+      this._updateIndicator(stage, message, progress);
+    } else {
+      // 创建新的指示器
+      this._createIndicator(stage, message, progress);
+    }
+  }
+
+  /**
+   * 更新当前阶段的进度
+   * @param {number} percentage - 进度百分比 (0-100)
+   */
+  updateProgress(percentage) {
+    if (!this.isVisible || !this.currentIndicatorId) {
+      return;
+    }
+
+    const progressBar = document.querySelector(`#${this.currentIndicatorId} .progress-bar-fill`);
+    const progressText = document.querySelector(`#${this.currentIndicatorId} .progress-percentage`);
+    
+    if (progressBar) {
+      progressBar.style.width = `${percentage}%`;
+    }
+    if (progressText) {
+      progressText.textContent = `${Math.round(percentage)}%`;
+    }
+  }
+
+  /**
+   * 显示错误状态
+   * @param {string} message - 错误消息
+   * @param {Function} retryCallback - 重试回调函数（可选）
+   */
+  showError(message, retryCallback = null) {
+    const container = document.getElementById(this.containerId);
+    if (!container) {
+      console.error(`容器不存在: ${this.containerId}`);
+      return;
+    }
+
+    // 隐藏当前指示器
+    this.hide();
+
+    const errorId = `error_${Date.now()}`;
+    const retryButton = retryCallback ? `
+      <button class="retry-button" onclick="this.retryCallback()">
+        <span class="retry-icon">🔄</span>
+        重试
+      </button>
+    ` : '';
+
+    const errorHtml = `
+      <div class="error-indicator" id="${errorId}">
+        <div class="error-icon">⚠️</div>
+        <div class="error-message">${message}</div>
+        ${retryButton}
+      </div>
+    `;
+
+    const errorDiv = document.createElement("div");
+    errorDiv.className = "message ai-message error-message-container";
+    errorDiv.innerHTML = `
+      <div class="message-avatar">Agent</div>
+      <div class="message-content">${errorHtml}</div>
+    `;
+
+    // 绑定重试回调
+    if (retryCallback) {
+      const retryBtn = errorDiv.querySelector('.retry-button');
+      if (retryBtn) {
+        retryBtn.retryCallback = retryCallback;
+      }
+    }
+
+    container.appendChild(errorDiv);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  /**
+   * 隐藏进度指示器
+   */
+  hide() {
+    if (this.currentIndicatorId) {
+      const indicatorElement = document.getElementById(this.currentIndicatorId);
+      if (indicatorElement) {
+        const messageElement = indicatorElement.closest('.message');
+        if (messageElement) {
+          messageElement.remove();
+        }
+      }
+    }
+    
+    this.currentIndicatorId = null;
+    this.currentStage = null;
+    this.isVisible = false;
+  }
+
+  /**
+   * 创建新的进度指示器
+   * @private
+   */
+  _createIndicator(stage, message, progress) {
+    const container = document.getElementById(this.containerId);
+    if (!container) {
+      console.error(`容器不存在: ${this.containerId}`);
+      return;
+    }
+
+    this.currentIndicatorId = `progress_${Date.now()}`;
+    
+    const progressBarHtml = progress !== null ? `
+      <div class="progress-bar-container">
+        <div class="progress-bar">
+          <div class="progress-bar-fill" style="width: ${progress}%; background-color: ${stage.color}"></div>
+        </div>
+        <div class="progress-percentage">${Math.round(progress)}%</div>
+      </div>
+    ` : '';
+
+    const indicatorHtml = `
+      <div class="enhanced-progress-indicator" id="${this.currentIndicatorId}">
+        <div class="progress-header">
+          <div class="progress-icon" style="color: ${stage.color}">${stage.icon}</div>
+          <div class="progress-stage-name">${stage.name}</div>
+        </div>
+        <div class="progress-message">${message}</div>
+        ${progressBarHtml}
+        <div class="progress-spinner">
+          <div class="spinner-ring" style="border-top-color: ${stage.color}"></div>
+        </div>
+      </div>
+    `;
+
+    const messageDiv = document.createElement("div");
+    messageDiv.className = "message ai-message progress-message-container";
+    messageDiv.innerHTML = `
+      <div class="message-avatar">Agent</div>
+      <div class="message-content">${indicatorHtml}</div>
+    `;
+
+    container.appendChild(messageDiv);
+    container.scrollTop = container.scrollHeight;
+    
+    this.isVisible = true;
+  }
+
+  /**
+   * 更新现有的进度指示器
+   * @private
+   */
+  _updateIndicator(stage, message, progress) {
+    const indicator = document.getElementById(this.currentIndicatorId);
+    if (!indicator) {
+      // 如果指示器不存在，创建新的
+      this._createIndicator(stage, message, progress);
+      return;
+    }
+
+    // 更新图标和颜色
+    const iconElement = indicator.querySelector('.progress-icon');
+    if (iconElement) {
+      iconElement.textContent = stage.icon;
+      iconElement.style.color = stage.color;
+    }
+
+    // 更新阶段名称
+    const stageNameElement = indicator.querySelector('.progress-stage-name');
+    if (stageNameElement) {
+      stageNameElement.textContent = stage.name;
+    }
+
+    // 更新消息
+    const messageElement = indicator.querySelector('.progress-message');
+    if (messageElement) {
+      messageElement.textContent = message;
+    }
+
+    // 更新进度条颜色
+    const progressFill = indicator.querySelector('.progress-bar-fill');
+    if (progressFill) {
+      progressFill.style.backgroundColor = stage.color;
+    }
+
+    // 更新spinner颜色
+    const spinner = indicator.querySelector('.spinner-ring');
+    if (spinner) {
+      spinner.style.borderTopColor = stage.color;
+    }
+
+    // 更新进度
+    if (progress !== null) {
+      this.updateProgress(progress);
     }
   }
 }
@@ -1478,36 +2177,15 @@ async function sendMessage() {
   elements.chatInput.value = ""
 
   try {
-    // 调用聊天API
-    const response = await fetch(`${API_BASE_URL}/chat/send`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        session_id: currentSessionId,
-        message: message
-      })
-    });
-
-    const result = await response.json();
+    // 检查是否支持流式API
+    const supportsStreaming = await checkStreamingSupport();
     
-    if (result.success) {
-      addMessage(result.message, "ai");
-      
-      // 检查是否准备好生成 - 检测消息中包含"开始生成"、"可以生成"等关键词
-      const message = result.message.toLowerCase();
-      const generateKeywords = ['开始生成', '可以生成', '可以开始生成', '准备生成', '现在可以生成'];
-      const shouldShowButton = result.ready_to_generate || generateKeywords.some(keyword => message.includes(keyword));
-      
-      if (shouldShowButton) {
-        // 延迟一下再显示按钮，确保后端状态已更新
-        setTimeout(() => {
-          showGenerateButton();
-        }, 500);
-      }
+    if (supportsStreaming) {
+      // 使用流式API
+      await handleStreamingChat(message);
     } else {
-      throw new Error(result.message || '发送消息失败');
+      // 降级到普通API
+      await handleRegularChat(message);
     }
     
   } catch (error) {
@@ -1519,6 +2197,243 @@ async function sendMessage() {
     } else {
       addMessage(`发送消息失败: ${error.message}`, "ai");
     }
+  }
+}
+
+/**
+ * 检查是否支持流式API
+ */
+async function checkStreamingSupport() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/chat/streaming/support`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      console.log('🔍 流式API支持检查结果:', result);
+      return result.supported || false;
+    } else {
+      console.warn('⚠️ 流式API支持检查失败:', response.status, response.statusText);
+    }
+  } catch (error) {
+    console.log('⚠️ 流式API检查失败，使用普通模式:', error);
+  }
+  
+  return false; // 默认不支持流式
+}
+
+/**
+ * 处理流式聊天
+ */
+async function handleStreamingChat(message) {
+  console.log('🎬 开始流式聊天处理');
+  
+  try {
+    // 调用流式聊天API
+    const response = await fetch(`${API_BASE_URL}/chat/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        session_id: currentSessionId,
+        message: message
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    // 处理Server-Sent Events
+    await handleStreamingResponse(response);
+    
+  } catch (error) {
+    console.error('流式聊天失败:', error);
+    
+    // 完成当前流式显示
+    if (globalStreamingDisplay) {
+      globalStreamingDisplay.finishStreaming();
+      globalStreamingDisplay = null;
+    }
+    
+    // 显示错误并降级到普通聊天
+    console.log('⬇️ 降级到普通聊天模式');
+    await handleRegularChat(message);
+  }
+}
+
+/**
+ * 处理流式响应
+ */
+async function handleStreamingResponse(response) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      
+      if (done) {
+        console.log('📄 流式响应读取完成');
+        break;
+      }
+      
+      buffer += decoder.decode(value, { stream: true });
+      
+      // 处理完整的数据行
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // 保留不完整的行
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            console.log('📊 收到流式数据:', data);
+            
+            if (data.type === 'stream_start') {
+              // 流式传输开始 - 显示进度提示
+              console.log('🎬 流式传输开始');
+              
+            } else if (data.type === 'progress') {
+              // 进度更新 - 可以显示进度指示器
+              const stage = data.data.stage;
+              const message = data.data.message;
+              console.log(`📈 进度更新: ${stage} - ${message}`);
+              
+              // 如果还没有创建流式显示，在这里创建
+              if (!globalStreamingDisplay && stage === 'streaming') {
+                globalStreamingDisplay = createStreamingMessage();
+              }
+              
+            } else if (data.type === 'streaming' && globalStreamingDisplay) {
+              // 追加流式内容
+              const content = data.data.content || '';
+              if (content) {
+                globalStreamingDisplay.appendText(content);
+              }
+              
+            } else if (data.type === 'complete') {
+              // 流式传输完成
+              console.log('🎉 流式传输完成');
+              
+              if (globalStreamingDisplay) {
+                // 确保显示完整内容
+                const fullContent = data.data.content;
+                if (fullContent && globalStreamingDisplay.currentText !== fullContent) {
+                  // 如果有完整内容且与当前显示不一致，更新为完整内容
+                  globalStreamingDisplay.currentText = fullContent;
+                  globalStreamingDisplay.displayedText = fullContent;
+                  globalStreamingDisplay._updateMessageContent();
+                }
+                
+                globalStreamingDisplay.finishStreaming();
+                globalStreamingDisplay = null;
+              }
+              
+              // 检查是否准备好生成
+              const shouldShowButton = data.data.ready_to_generate || false;
+              if (shouldShowButton) {
+                setTimeout(() => {
+                  showGenerateButton();
+                }, 500);
+              }
+              
+              return;
+              
+            } else if (data.type === 'stream_complete') {
+              // 流式会话完成
+              console.log('✅ 流式会话完成');
+              
+              if (globalStreamingDisplay) {
+                globalStreamingDisplay.finishStreaming();
+                globalStreamingDisplay = null;
+              }
+              
+              return;
+              
+            } else if (data.type === 'error') {
+              console.error('❌ 流式传输错误:', data.data.message);
+              
+              // 显示用户友好的错误消息
+              const userMessage = data.data.user_message || data.data.message || '流式传输中发生错误';
+              
+              if (globalStreamingDisplay) {
+                globalStreamingDisplay.finishStreaming();
+                globalStreamingDisplay = null;
+              }
+              
+              // 显示错误消息
+              addMessage(userMessage, "ai");
+              
+              throw new Error(data.data.message || '流式传输中发生错误');
+            }
+            
+          } catch (parseError) {
+            console.error('解析流数据失败:', parseError, '原始数据:', line);
+          }
+        }
+      }
+    }
+    
+  } catch (error) {
+    console.error('流式响应处理失败:', error);
+    throw error;
+  } finally {
+    // 确保资源清理
+    try {
+      reader.releaseLock();
+    } catch (e) {
+      console.warn('释放reader锁失败:', e);
+    }
+    
+    // 完成流式显示
+    if (globalStreamingDisplay) {
+      globalStreamingDisplay.finishStreaming();
+      globalStreamingDisplay = null;
+    }
+  }
+}
+
+/**
+ * 处理普通聊天（降级模式）
+ */
+async function handleRegularChat(message) {
+  // 调用普通聊天API
+  const response = await fetch(`${API_BASE_URL}/chat/send`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      session_id: currentSessionId,
+      message: message
+    })
+  });
+
+  const result = await response.json();
+  
+  if (result.success) {
+    // 使用流式效果显示AI回复
+    addMessage(result.message, "ai", null, true);
+    
+    // 检查是否准备好生成
+    const message = result.message.toLowerCase();
+    const generateKeywords = ['开始生成', '可以生成', '可以开始生成', '准备生成', '现在可以生成'];
+    const shouldShowButton = result.ready_to_generate || generateKeywords.some(keyword => message.includes(keyword));
+    
+    if (shouldShowButton) {
+      setTimeout(() => {
+        showGenerateButton();
+      }, 500);
+    }
+  } else {
+    throw new Error(result.message || '发送消息失败');
   }
 }
 
@@ -1819,21 +2734,86 @@ function addTestCaseCard() {
   })
 }
 
-function addMessage(text, type, timestamp = null) {
+function addMessage(text, type, timestamp = null, streaming = false) {
   const messageTimestamp = timestamp || new Date();
   const formattedTime = formatTimestamp(messageTimestamp);
   
-  const messageDiv = document.createElement("div")
-  messageDiv.className = `message ${type}-message`
-  messageDiv.innerHTML = `
-    <div class="message-avatar">${type === "ai" ? "Agent" : "我"}</div>
-    <div class="message-content">
-      <div class="message-text">${text.replace(/\n/g, "<br>")}</div>
-      <div class="message-timestamp">${formattedTime}</div>
-    </div>
-  `
-  elements.chatMessages.appendChild(messageDiv)
-  elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight
+  if (streaming && type === "ai") {
+    // 使用流式显示 - 支持真正的流式数据接收
+    const streamingDisplay = new StreamingMessageDisplay("chatMessages", {
+      typingSpeed: 50,
+      cursorBlinkRate: 500,
+      autoScroll: true,
+      showCursor: true,
+      allowSkip: true
+    });
+    
+    const messageId = streamingDisplay.startStreaming();
+    
+    // 立即开始显示文本
+    streamingDisplay.appendText(text);
+    
+    // 延迟完成，模拟流式效果
+    setTimeout(() => {
+      streamingDisplay.finishStreaming();
+    }, text.length * (1000 / 50) + 500); // 根据文本长度计算显示时间
+    
+    return messageId;
+  } else {
+    // 普通消息显示
+    const messageDiv = document.createElement("div")
+    messageDiv.className = `message ${type}-message`
+    messageDiv.innerHTML = `
+      <div class="message-avatar">${type === "ai" ? "Agent" : "我"}</div>
+      <div class="message-content">
+        <div class="message-text">${text.replace(/\n/g, "<br>")}</div>
+        <div class="message-timestamp">${formattedTime}</div>
+      </div>
+    `
+    elements.chatMessages.appendChild(messageDiv)
+    elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight
+    
+    return null;
+  }
+}
+
+/**
+ * 创建流式消息容器 - 用于真正的流式数据接收
+ * @param {string} messageId - 消息ID
+ * @param {Date} timestamp - 时间戳
+ * @returns {StreamingMessageDisplay} 流式显示实例
+ */
+function createStreamingMessage(messageId = null, timestamp = null) {
+  const messageTimestamp = timestamp || new Date();
+  const formattedTime = formatTimestamp(messageTimestamp);
+  
+  // 创建流式显示实例
+  const streamingDisplay = new StreamingMessageDisplay("chatMessages", {
+    typingSpeed: 60,        // 稍快的显示速度
+    cursorBlinkRate: 500,
+    autoScroll: true,
+    showCursor: true,
+    allowSkip: true
+  });
+  
+  // 开始流式显示
+  const actualMessageId = streamingDisplay.startStreaming(messageId);
+  
+  // 添加时间戳到消息容器
+  setTimeout(() => {
+    const messageElement = document.getElementById(actualMessageId);
+    if (messageElement) {
+      const messageContent = messageElement.closest('.message-content');
+      if (messageContent && !messageContent.querySelector('.message-timestamp')) {
+        const timestampDiv = document.createElement('div');
+        timestampDiv.className = 'message-timestamp';
+        timestampDiv.textContent = formattedTime;
+        messageContent.appendChild(timestampDiv);
+      }
+    }
+  }, 100);
+  
+  return streamingDisplay;
 }
 
 function showActionButtons() {

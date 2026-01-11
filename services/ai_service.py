@@ -1413,6 +1413,9 @@ class DifyHandler:
             event_processor=self.event_processor
         )
         
+        # 初始化流式客户端
+        self.streaming_client = DifyStreamingClient(self)
+        
         # 设置同步请求会话
         self.session = requests.Session()
         self._setup_session()
@@ -1472,6 +1475,10 @@ class DifyHandler:
             logger.debug(f"创建新的异步HTTP会话: connector_limit={connector.limit}, limit_per_host={connector.limit_per_host}")
         
         return self._async_session
+    
+    def get_streaming_client(self) -> 'DifyStreamingClient':
+        """获取流式客户端"""
+        return self.streaming_client
     
     def get_progress_tracker(self) -> ProgressTracker:
         """获取进度跟踪器"""
@@ -1917,6 +1924,207 @@ class DifyHandler:
             except:
                 # 如果连日志都无法记录，就静默忽略
                 pass
+
+
+class DifyStreamingClient:
+    """专门处理Dify流式API调用的客户端"""
+    
+    def __init__(self, dify_handler: DifyHandler):
+        """
+        初始化Dify流式客户端
+        
+        Args:
+            dify_handler: Dify处理器实例
+        """
+        self.dify_handler = dify_handler
+        self.active_streams = {}  # 活跃的流式连接
+        
+        logger.info("DifyStreamingClient初始化完成")
+    
+    async def send_streaming_message(self, message: str, conversation_id: str = None, context: Dict[str, Any] = None) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        发送流式消息到Dify
+        
+        Args:
+            message: 消息内容
+            conversation_id: 对话ID（可选）
+            context: 对话上下文（可选）
+            
+        Yields:
+            Dict[str, Any]: 流式响应数据
+        """
+        stream_id = f"dify_stream_{uuid.uuid4().hex[:8]}"
+        
+        try:
+            # 记录活跃流
+            self.active_streams[stream_id] = {
+                'conversation_id': conversation_id,
+                'started_at': datetime.utcnow(),
+                'status': 'active'
+            }
+            
+            logger.info(f"开始Dify流式消息发送: stream_id={stream_id}, conversation_id={conversation_id}")
+            
+            # 调用DifyHandler的异步流式方法
+            stream_response = await self.dify_handler.send_message_async(
+                conversation_id=conversation_id,
+                message=message,
+                context=context or {},
+                stream=True
+            )
+            
+            # 处理流式响应
+            async for chunk in self._handle_stream_response(stream_response):
+                yield chunk
+                
+        except Exception as e:
+            logger.error(f"Dify流式消息发送异常: stream_id={stream_id}, error={e}")
+            yield {
+                'event': 'error',
+                'error': 'dify_stream_error',
+                'message': str(e),
+                'user_message': 'AI服务响应异常，请稍后重试'
+            }
+            
+        finally:
+            # 清理活跃流记录
+            if stream_id in self.active_streams:
+                self.active_streams[stream_id]['status'] = 'completed'
+                self.active_streams[stream_id]['completed_at'] = datetime.utcnow()
+                
+                # 延迟清理
+                asyncio.create_task(self._cleanup_stream(stream_id, delay=300))
+    
+    async def _handle_stream_response(self, stream_response) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        处理流式响应数据
+        
+        Args:
+            stream_response: 流式响应生成器
+            
+        Yields:
+            Dict[str, Any]: 处理后的流式数据
+        """
+        try:
+            if hasattr(stream_response, '__aiter__'):
+                # 异步生成器
+                async for chunk in stream_response:
+                    if chunk:
+                        processed_chunk = self._parse_stream_chunk(chunk)
+                        if processed_chunk:
+                            yield processed_chunk
+            else:
+                # 普通响应，转换为流式格式
+                content = stream_response.get('answer', '') if isinstance(stream_response, dict) else str(stream_response)
+                
+                # 分块发送
+                chunk_size = 5
+                for i in range(0, len(content), chunk_size):
+                    chunk_content = content[i:i + chunk_size]
+                    yield {
+                        'event': 'message',
+                        'content': chunk_content,
+                        'message_id': stream_response.get('message_id', f"msg_{uuid.uuid4().hex[:8]}"),
+                        'conversation_id': stream_response.get('conversation_id')
+                    }
+                    await asyncio.sleep(0.05)  # 模拟流式延迟
+                
+                # 发送结束事件
+                yield {
+                    'event': 'message_end',
+                    'message_id': stream_response.get('message_id', f"msg_{uuid.uuid4().hex[:8]}"),
+                    'conversation_id': stream_response.get('conversation_id'),
+                    'metadata': stream_response.get('metadata', {})
+                }
+                
+        except Exception as e:
+            logger.error(f"处理流式响应异常: {e}")
+            yield {
+                'event': 'error',
+                'error': 'stream_processing_error',
+                'message': str(e)
+            }
+    
+    def _parse_stream_chunk(self, chunk: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        解析流式数据块
+        
+        Args:
+            chunk: 原始数据块
+            
+        Returns:
+            Optional[Dict[str, Any]]: 解析后的数据块
+        """
+        try:
+            # 如果chunk已经是正确格式，直接返回
+            if isinstance(chunk, dict) and 'event' in chunk:
+                return chunk
+            
+            # 尝试解析其他格式的数据
+            if isinstance(chunk, dict):
+                # 根据数据内容推断事件类型
+                if 'answer' in chunk:
+                    return {
+                        'event': 'message',
+                        'content': chunk.get('answer', ''),
+                        'message_id': chunk.get('message_id'),
+                        'conversation_id': chunk.get('conversation_id')
+                    }
+                elif 'workflow_run_id' in chunk:
+                    return {
+                        'event': 'workflow_started',
+                        'workflow_run_id': chunk.get('workflow_run_id'),
+                        'progress': 0
+                    }
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"解析流式数据块失败: {e}")
+            return None
+    
+    async def _cleanup_stream(self, stream_id: str, delay: int = 300):
+        """
+        清理流式连接记录
+        
+        Args:
+            stream_id: 流ID
+            delay: 延迟时间（秒）
+        """
+        try:
+            await asyncio.sleep(delay)
+            if stream_id in self.active_streams:
+                del self.active_streams[stream_id]
+                logger.debug(f"清理Dify流式连接记录: stream_id={stream_id}")
+        except Exception as e:
+            logger.error(f"清理Dify流式连接记录失败: stream_id={stream_id}, error={e}")
+    
+    def get_active_streams(self) -> Dict[str, Dict[str, Any]]:
+        """
+        获取活跃的流式连接信息
+        
+        Returns:
+            Dict[str, Dict[str, Any]]: 活跃流信息
+        """
+        return self.active_streams.copy()
+    
+    def get_stream_count(self) -> int:
+        """
+        获取活跃流的数量
+        
+        Returns:
+            int: 活跃流数量
+        """
+        return len([s for s in self.active_streams.values() if s['status'] == 'active'])
+    
+    async def cleanup_all_streams(self):
+        """清理所有流式连接记录"""
+        try:
+            stream_count = len(self.active_streams)
+            self.active_streams.clear()
+            logger.info(f"清理所有Dify流式连接记录: {stream_count} 个")
+        except Exception as e:
+            logger.error(f"清理所有Dify流式连接记录失败: {e}")
 
 
 class DifyErrorHandler:
@@ -3135,6 +3343,186 @@ class AIService:
             'not_found' in error_str and 'conversation' in error_str
         )
     
+    async def send_message_streaming(self, session_id: str, message: str) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        发送流式消息 - 支持Server-Sent Events格式的流式响应
+        
+        Args:
+            session_id: 会话ID
+            message: 用户消息
+            
+        Yields:
+            Dict[str, Any]: 流式响应数据
+        """
+        try:
+            # 获取会话信息
+            session = await self.session_manager.get_session(session_id)
+            if not session:
+                logger.warning(f"会话不存在: session_id={session_id}")
+                yield {
+                    'event': 'error',
+                    'error': 'session_not_found',
+                    'message': '会话不存在或已过期'
+                }
+                return
+            
+            # 添加用户消息到会话历史
+            user_message = ChatMessage(
+                id=f"msg_{uuid.uuid4().hex[:8]}",
+                session_id=session_id,
+                role="user",
+                content=message,
+                timestamp=datetime.utcnow()
+            )
+            await self.session_manager.add_message(session_id, user_message)
+            
+            # 获取对话上下文
+            conversation_history = await self.session_manager.get_conversation_context(session_id)
+            context = {
+                'chat_history': conversation_history,
+                'session_id': session_id
+            }
+            
+            handler = self.mode_selector.get_handler()
+            
+            if self.mode_selector.is_mock_mode():
+                logger.info(f"使用Mock模式处理流式消息: session_id={session_id}")
+                async for chunk in self._mock_streaming_response(message, context):
+                    yield chunk
+            else:
+                # 获取Dify conversation_id
+                dify_conversation_id = await self.session_manager.get_dify_conversation_id(session_id)
+                
+                logger.info(f"使用Dify流式API: session_id={session_id}, conversation_id={dify_conversation_id}")
+                
+                try:
+                    # 调用Dify流式API
+                    async for chunk in self._dify_streaming_chat(session_id, dify_conversation_id, message, context, handler):
+                        yield chunk
+                        
+                except Exception as dify_error:
+                    logger.error(f"Dify流式API调用失败: {dify_error}")
+                    # 降级到Mock模式
+                    self.mode_selector.switch_to_mock(f"流式API异常: {str(dify_error)}")
+                    async for chunk in self._mock_streaming_response(message, context):
+                        yield chunk
+                        
+        except Exception as e:
+            logger.error(f"流式消息发送异常: {e}")
+            yield {
+                'event': 'error',
+                'error': 'internal_error',
+                'message': str(e)
+            }
+    
+    async def _mock_streaming_response(self, message: str, context: Dict[str, Any]) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Mock流式响应 - 模拟逐字输出效果
+        
+        Args:
+            message: 用户消息
+            context: 对话上下文
+            
+        Yields:
+            Dict[str, Any]: 流式响应块
+        """
+        # 生成Mock回复内容
+        mock_response = self._mock_chat_response(message, context)
+        reply_content = mock_response.get('reply', '抱歉，我无法处理您的请求。')
+        
+        # 模拟流式输出，每次发送几个字符
+        chunk_size = 3  # 每次发送3个字符
+        
+        for i in range(0, len(reply_content), chunk_size):
+            chunk_content = reply_content[i:i + chunk_size]
+            
+            yield {
+                'event': 'message',
+                'content': chunk_content,
+                'message_id': f"mock_msg_{uuid.uuid4().hex[:8]}",
+                'conversation_id': mock_response.get('conversation_id', f"mock_conv_{uuid.uuid4().hex[:8]}")
+            }
+            
+            # 添加延迟模拟真实的打字效果
+            await asyncio.sleep(0.1)
+        
+        # 发送消息结束事件
+        yield {
+            'event': 'message_end',
+            'message_id': f"mock_msg_{uuid.uuid4().hex[:8]}",
+            'conversation_id': mock_response.get('conversation_id', f"mock_conv_{uuid.uuid4().hex[:8]}"),
+            'metadata': {
+                'usage': {'tokens': len(reply_content)},
+                'mock_mode': True
+            }
+        }
+    
+    async def _dify_streaming_chat(self, session_id: str, conversation_id: str, message: str, context: Dict[str, Any], handler) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Dify流式聊天 - 调用Dify的流式API
+        
+        Args:
+            session_id: 会话ID
+            conversation_id: Dify对话ID
+            message: 用户消息
+            context: 对话上下文
+            handler: Dify处理器
+            
+        Yields:
+            Dict[str, Any]: 流式响应块
+        """
+        try:
+            # 调用Dify的异步流式方法
+            stream_response = await handler.send_message_async(
+                conversation_id=conversation_id,
+                message=message,
+                context=context,
+                stream=True
+            )
+            
+            # 处理流式响应
+            if hasattr(stream_response, '__aiter__'):
+                async for chunk in stream_response:
+                    if chunk:
+                        yield chunk
+                        
+                        # 如果是消息结束事件，更新会话信息
+                        if chunk.get('event') == 'message_end':
+                            new_conversation_id = chunk.get('conversation_id')
+                            if new_conversation_id and new_conversation_id != conversation_id:
+                                await self.session_manager.update_conversation_id(session_id, new_conversation_id)
+            else:
+                # 如果不是流式响应，转换为流式格式
+                content = stream_response.get('answer', '') if isinstance(stream_response, dict) else str(stream_response)
+                
+                # 分块发送
+                chunk_size = 5
+                for i in range(0, len(content), chunk_size):
+                    chunk_content = content[i:i + chunk_size]
+                    yield {
+                        'event': 'message',
+                        'content': chunk_content,
+                        'message_id': stream_response.get('message_id', f"msg_{uuid.uuid4().hex[:8]}"),
+                        'conversation_id': stream_response.get('conversation_id', conversation_id)
+                    }
+                    await asyncio.sleep(0.05)
+                
+                # 发送结束事件
+                yield {
+                    'event': 'message_end',
+                    'message_id': stream_response.get('message_id', f"msg_{uuid.uuid4().hex[:8]}"),
+                    'conversation_id': stream_response.get('conversation_id', conversation_id),
+                    'metadata': stream_response.get('metadata', {})
+                }
+                
+        except Exception as e:
+            logger.error(f"Dify流式聊天异常: {e}")
+            yield {
+                'event': 'error',
+                'error': 'dify_stream_error',
+                'message': str(e)
+            }
+
     async def generate_test_cases(self, session_id: str, context: Dict[str, Any]) -> AsyncGenerator[Dict[str, Any], None]:
         """
         生成测试用例 - 修复异步生成器问题

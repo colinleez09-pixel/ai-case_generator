@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JavaScript 语法测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 JavaScript 语法测试</h1>
+    
+    <div id="status" class="status info">
+        正在加载 script.js...
+    </div>
+    
+    <div id="details"></div>
+    
+    <script>
+        const statusDiv = document.getElementById('status');
+        const detailsDiv = document.getElementById('details');
+        
+        // 测试 script.js 是否能正常加载
+        function testScriptLoading() {
+            try {
+                // 创建一个 script 标签来加载 script.js
+                const script = document.createElement('script');
+                script.src = 'static/script.js';
+                
+                script.onload = function() {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = '✅ script.js 加载成功，语法正确！';
+                    
+                    // 测试一些关键函数是否存在
+                    const functions = [
+                        'addMessage',
+                        'createStreamingMessage', 
+                        'handleStreamingChat',
+                        'handleStreamingResponse',
+                        'StreamingMessageDisplay',
+                        'ProgressIndicator'
+                    ];
+                    
+                    let details = '<h3>🔍 函数检查结果:</h3><ul>';
+                    functions.forEach(funcName => {
+                        const exists = typeof window[funcName] !== 'undefined';
+                        details += `<li>${exists ? '✅' : '❌'} ${funcName}: ${exists ? '存在' : '不存在'}</li>`;
+                    });
+                    details += '</ul>';
+                    
+                    detailsDiv.innerHTML = details;
+                };
+                
+                script.onerror = function(error) {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '❌ script.js 加载失败，可能存在语法错误！';
+                    detailsDiv.innerHTML = `<h3>错误详情:</h3><pre>${error}</pre>`;
+                };
+                
+                document.head.appendChild(script);
+                
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '❌ 测试过程中发生错误！';
+                detailsDiv.innerHTML = `<h3>错误详情:</h3><pre>${error.message}</pre>`;
+            }
+        }
+        
+        // 开始测试
+        testScriptLoading();
+    </script>
+</body>
+</html>
