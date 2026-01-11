@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testcases generated_at="2024-01-11T10:30:00Z" count="2">
+    <!-- 混合格式测试用例 - 包含属性和文本内容 -->
+    <testcase id="TC001" name="API接口测试" precondition="服务器运行正常" step="发送POST请求" expected="返回200状态码">
+        <description>测试用户注册API接口的基本功能</description>
+        
+        <preconditions>
+            <precondition index="1">API服务已启动</precondition>
+            <precondition index="2">数据库连接正常</precondition>
+        </preconditions>
+        
+        <steps>
+            <step index="1">构造注册请求数据</step>
+            <step index="2">发送POST请求到/api/register</step>
+            <step index="3">检查响应状态码</step>
+        </steps>
+        
+        <expectedResults>
+            <expectedResult index="1">HTTP状态码为201</expectedResult>
+            <expectedResult index="2">响应包含用户ID</expectedResult>
+        </expectedResults>
+    </testcase>
+    
+    <testcase id="TC002" name="文件上传测试">
+        <!-- 这个用例使用简单的文本格式 -->
+        <precondition>用户已登录系统</precondition>
+        <precondition>文件大小小于10MB</precondition>
+        
+        <step>选择要上传的文件</step>
+        <step>点击上传按钮</step>
+        <step>等待上传完成</step>
+        
+        <expected>文件上传成功</expected>
+        <expected>显示上传进度</expected>
+        <expected>生成文件访问链接</expected>
+        
+        <!-- 同时包含嵌套结构 -->
+        <metadata>
+            <author>测试工程师</author>
+            <created>2024-01-11</created>
+            <tags>
+                <tag>文件上传</tag>
+                <tag>用户功能</tag>
+            </tags>
+        </metadata>
+    </testcase>
+</testcases>

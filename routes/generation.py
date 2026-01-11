@@ -46,6 +46,35 @@ def validate_files(files):
     
     return errors
 
+@generation_bp.route('/create-session', methods=['POST'])
+def create_session():
+    """创建新的生成会话"""
+    try:
+        # 获取服务实例
+        _, session_service, _ = get_services()
+        
+        # 创建新会话
+        session_id = session_service.create_session()
+        
+        # 更新会话状态为chatting，使其可以进行对话
+        session_service.update_session_data(session_id, {
+            'status': 'chatting'
+        })
+        
+        return jsonify({
+            'success': True,
+            'session_id': session_id,
+            'message': '会话创建成功'
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"创建会话失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'internal_error',
+            'message': '服务器内部错误'
+        }), 500
+
 @generation_bp.route('/start', methods=['POST'])
 def start_generation():
     """开始生成任务 - 处理文件上传和配置"""
@@ -95,12 +124,21 @@ def start_generation():
         result = generation_service.start_generation_task(files, config_data)
         
         if result['success']:
-            return jsonify({
+            response_data = {
                 'success': True,
                 'session_id': result['session_id'],
-                'message': '任务启动成功',
+                'message': result.get('message', '任务启动成功'),
                 'analysis_result': result.get('analysis_result')
-            })
+            }
+            
+            # 传递自动分析相关的字段
+            if result.get('auto_chat_started'):
+                response_data['auto_chat_started'] = True
+                response_data['initial_analysis'] = result.get('initial_analysis', {})
+                response_data['files_processed'] = result.get('files_processed', 0)
+                response_data['extracted_content'] = result.get('extracted_content', '')
+            
+            return jsonify(response_data)
         else:
             return jsonify({
                 'success': False,

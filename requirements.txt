@@ -7,3 +7,4 @@ Werkzeug==2.3.7
 pytest==7.4.3
 pytest-cov==4.1.0
 hypothesis==6.88.1
+aiohttp==3.9.1

@@ -10,6 +10,9 @@ from utils.error_handlers import (
     setup_request_logging
 )
 
+# 移除Dify连接补丁，保持代理设置
+print("🔧 使用正常代理设置连接Dify")
+
 def create_app(config_name=None):
     """应用工厂函数"""
     if config_name is None:

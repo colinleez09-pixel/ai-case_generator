@@ -357,6 +357,195 @@ class TestFileService:
         """测试获取不存在会话的文件信息"""
         result = file_service.get_file_info('nonexistent_session', 'some_file')
         assert result is None
+    
+    def test_extract_test_case_description_success(self, file_service, temp_dir):
+        """测试成功提取测试用例描述"""
+        xml_content = '''<?xml version="1.0" encoding="UTF-8"?>
+<testcase>
+    <precondition>CBS系统运行正常</precondition>
+    <precondition>修改系统变量SYS_abc的值为12</precondition>
+    <step>进行调账，调减20元</step>
+    <step>验证账户余额</step>
+    <expected>调账成功</expected>
+    <expected>account_balance表amount字段值为80</expected>
+</testcase>'''
+        
+        # 创建临时XML文件
+        xml_file = os.path.join(temp_dir, 'test_extract.xml')
+        with open(xml_file, 'w', encoding='utf-8') as f:
+            f.write(xml_content)
+        
+        result = file_service.extract_test_case_description(xml_file)
+        
+        # 验证格式化输出
+        assert '【预置条件】' in result
+        assert '1. CBS系统运行正常' in result
+        assert '2. 修改系统变量SYS_abc的值为12' in result
+        assert '【测试步骤】' in result
+        assert '1. 进行调账，调减20元' in result
+        assert '2. 验证账户余额' in result
+        assert '【预期结果】' in result
+        assert '1. 调账成功' in result
+        assert '2. account_balance表amount字段值为80' in result
+    
+    def test_extract_test_case_description_nested_structure(self, file_service, temp_dir):
+        """测试提取嵌套结构的测试用例描述"""
+        xml_content = '''<?xml version="1.0" encoding="UTF-8"?>
+<testcases>
+    <testcase id="TC001">
+        <preconditions>
+            <precondition>系统初始化完成</precondition>
+            <precondition>用户已登录</precondition>
+        </preconditions>
+        <steps>
+            <step>打开页面</step>
+            <step>输入数据</step>
+        </steps>
+        <expectedResults>
+            <expectedResult>页面正常显示</expectedResult>
+            <expectedResult>数据保存成功</expectedResult>
+        </expectedResults>
+    </testcase>
+</testcases>'''
+        
+        xml_file = os.path.join(temp_dir, 'test_nested.xml')
+        with open(xml_file, 'w', encoding='utf-8') as f:
+            f.write(xml_content)
+        
+        result = file_service.extract_test_case_description(xml_file)
+        
+        assert '【预置条件】' in result
+        assert '1. 系统初始化完成' in result
+        assert '2. 用户已登录' in result
+        assert '【测试步骤】' in result
+        assert '1. 打开页面' in result
+        assert '2. 输入数据' in result
+        assert '【预期结果】' in result
+        assert '1. 页面正常显示' in result
+        assert '2. 数据保存成功' in result
+    
+    def test_extract_test_case_description_chinese_tags(self, file_service, temp_dir):
+        """测试提取中文标签的测试用例描述"""
+        xml_content = '''<?xml version="1.0" encoding="UTF-8"?>
+<测试用例>
+    <前置条件>环境准备完成</前置条件>
+    <测试步骤>执行操作</测试步骤>
+    <预期结果>操作成功</预期结果>
+</测试用例>'''
+        
+        xml_file = os.path.join(temp_dir, 'test_chinese.xml')
+        with open(xml_file, 'w', encoding='utf-8') as f:
+            f.write(xml_content)
+        
+        result = file_service.extract_test_case_description(xml_file)
+        
+        assert '【预置条件】' in result
+        assert '1. 环境准备完成' in result
+        assert '【测试步骤】' in result
+        assert '1. 执行操作' in result
+        assert '【预期结果】' in result
+        assert '1. 操作成功' in result
+    
+    def test_extract_test_case_description_multiple_testcases(self, file_service, temp_dir):
+        """测试提取多个测试用例的描述"""
+        xml_content = '''<?xml version="1.0" encoding="UTF-8"?>
+<testcases>
+    <testcase id="TC001">
+        <precondition>前置条件1</precondition>
+        <step>步骤1</step>
+        <expected>结果1</expected>
+    </testcase>
+    <testcase id="TC002">
+        <precondition>前置条件2</precondition>
+        <step>步骤2</step>
+        <expected>结果2</expected>
+    </testcase>
+</testcases>'''
+        
+        xml_file = os.path.join(temp_dir, 'test_multiple.xml')
+        with open(xml_file, 'w', encoding='utf-8') as f:
+            f.write(xml_content)
+        
+        result = file_service.extract_test_case_description(xml_file)
+        
+        # 应该合并所有测试用例的内容
+        assert '【预置条件】' in result
+        assert '前置条件1' in result
+        assert '前置条件2' in result
+        assert '【测试步骤】' in result
+        assert '步骤1' in result
+        assert '步骤2' in result
+        assert '【预期结果】' in result
+        assert '结果1' in result
+        assert '结果2' in result
+    
+    def test_extract_test_case_description_empty_content(self, file_service, temp_dir):
+        """测试提取空内容时返回默认模板"""
+        xml_content = '''<?xml version="1.0" encoding="UTF-8"?>
+<testcase>
+    <other_tag>其他内容</other_tag>
+</testcase>'''
+        
+        xml_file = os.path.join(temp_dir, 'test_empty.xml')
+        with open(xml_file, 'w', encoding='utf-8') as f:
+            f.write(xml_content)
+        
+        result = file_service.extract_test_case_description(xml_file)
+        
+        # 应该返回默认模板
+        assert '【预置条件】' in result
+        assert 'CBS系统运行正常' in result
+        assert '【测试步骤】' in result
+        assert '进行调账，调减20元' in result
+        assert '【预期结果】' in result
+        assert '调账成功' in result
+    
+    def test_extract_test_case_description_invalid_xml(self, file_service, temp_dir):
+        """测试无效XML文件时返回默认模板"""
+        invalid_xml = '''<?xml version="1.0" encoding="UTF-8"?>
+<testcase>
+    <unclosed_tag>
+</testcase>'''
+        
+        xml_file = os.path.join(temp_dir, 'test_invalid.xml')
+        with open(xml_file, 'w', encoding='utf-8') as f:
+            f.write(invalid_xml)
+        
+        result = file_service.extract_test_case_description(xml_file)
+        
+        # 应该返回默认模板
+        assert '【预置条件】' in result
+        assert 'CBS系统运行正常' in result
+        assert '【测试步骤】' in result
+        assert '进行调账，调减20元' in result
+        assert '【预期结果】' in result
+        assert '调账成功' in result
+    
+    def test_extract_test_case_description_nonexistent_file(self, file_service):
+        """测试不存在的文件时返回默认模板"""
+        result = file_service.extract_test_case_description('/nonexistent/file.xml')
+        
+        # 应该返回默认模板
+        assert '【预置条件】' in result
+        assert 'CBS系统运行正常' in result
+        assert '【测试步骤】' in result
+        assert '进行调账，调减20元' in result
+        assert '【预期结果】' in result
+        assert '调账成功' in result
+    
+    def test_get_default_template(self, file_service):
+        """测试获取默认模板"""
+        result = file_service._get_default_template()
+        
+        assert '【预置条件】' in result
+        assert '1. CBS系统运行正常' in result
+        assert '2. 修改系统变量SYS_abc的值为12' in result
+        assert '3. 设置变量，初始金额为100' in result
+        assert '【测试步骤】' in result
+        assert '1. 进行调账，调减20元' in result
+        assert '【预期结果】' in result
+        assert '1. 调账成功' in result
+        assert '2. account_balance表amount字段值为80' in result
 
 
 class TestFileServiceIntegration:

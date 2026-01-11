@@ -50,7 +50,8 @@ class SessionService:
             'chat_history': [],
             'analysis_result': {},
             'test_cases': [],
-            'generated_file_id': None
+            'generated_file_id': None,
+            'dify_conversation_id': None  # Dify对话ID，用于多轮对话
         }
         
         try:
@@ -361,3 +362,90 @@ class SessionService:
         except Exception as e:
             logger.error(f"清理过期会话失败: {e}")
             return 0
+    
+    def get_dify_conversation_id(self, session_id: str) -> Optional[str]:
+        """
+        获取Dify对话ID
+        
+        Args:
+            session_id: 会话ID
+            
+        Returns:
+            Optional[str]: Dify对话ID，如果不存在返回None
+        """
+        session_data = self.get_session_data(session_id)
+        if session_data:
+            dify_id = session_data.get('dify_conversation_id')
+            logger.debug(f"获取Dify对话ID: session_id={session_id}, dify_conversation_id={dify_id}")
+            return dify_id
+        return None
+    
+    def update_dify_conversation_id(self, session_id: str, dify_conversation_id: str) -> bool:
+        """
+        更新Dify对话ID
+        
+        Args:
+            session_id: 会话ID
+            dify_conversation_id: Dify对话ID
+            
+        Returns:
+            bool: 更新是否成功
+        """
+        result = self.update_session_data(session_id, {
+            'dify_conversation_id': dify_conversation_id
+        })
+        if result:
+            logger.info(f"更新Dify对话ID成功: session_id={session_id}, dify_conversation_id={dify_conversation_id}")
+        else:
+            logger.error(f"更新Dify对话ID失败: session_id={session_id}")
+        return result
+    
+    def update_dify_system_params(self, session_id: str, system_params: Dict[str, Any]) -> bool:
+        """
+        更新Dify系统参数
+        
+        Args:
+            session_id: 会话ID
+            system_params: Dify系统参数
+            
+        Returns:
+            bool: 更新是否成功
+        """
+        result = self.update_session_data(session_id, {
+            'dify_system_params': system_params
+        })
+        if result:
+            logger.info(f"更新Dify系统参数成功: session_id={session_id}, params={system_params}")
+        return result
+    
+    def get_dify_system_params(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """
+        获取Dify系统参数
+        
+        Args:
+            session_id: 会话ID
+            
+        Returns:
+            Optional[Dict[str, Any]]: Dify系统参数
+        """
+        session_data = self.get_session_data(session_id)
+        if session_data:
+            return session_data.get('dify_system_params', {})
+        return {}
+    
+    def clear_dify_conversation_id(self, session_id: str) -> bool:
+        """
+        清除Dify对话ID（用于开始新对话）
+        
+        Args:
+            session_id: 会话ID
+            
+        Returns:
+            bool: 清除是否成功
+        """
+        result = self.update_session_data(session_id, {
+            'dify_conversation_id': None
+        })
+        if result:
+            logger.info(f"清除Dify对话ID成功: session_id={session_id}")
+        return result

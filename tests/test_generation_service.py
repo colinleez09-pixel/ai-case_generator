@@ -68,6 +68,17 @@ class TestGenerationService:
             'history_info': '检测到50条历史用例',
             'suggestions': ['建议1', '建议2']
         }
+        
+        # Mock chat_with_agent方法为异步
+        async def mock_chat_with_agent(session_id, message, context):
+            return {
+                'success': True,
+                'reply': 'AI分析完成，请继续对话',
+                'conversation_id': 'conv_123',
+                'need_more_info': True
+            }
+        ai_service.chat_with_agent = mock_chat_with_agent
+        
         ai_service.generate_test_cases.return_value = iter([
             {
                 'type': 'progress',

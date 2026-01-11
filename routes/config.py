@@ -74,12 +74,22 @@ def get_all_config():
     try:
         config_service = get_config_service()
         
+        # 获取AI服务配置
+        ai_service_config = current_app.config.get('AI_SERVICE_CONFIG', {})
+        
         return jsonify({
             'success': True,
             'config': {
                 'api_versions': config_service.get_api_versions(),
                 'preset_steps': config_service.get_preset_steps(),
                 'preset_components': config_service.get_preset_components()
+            },
+            'ai_service': {
+                'mock_mode': ai_service_config.get('mock_mode', True),
+                'dify_url': ai_service_config.get('dify_url', ''),
+                'stream_mode': ai_service_config.get('stream_mode', True),
+                'timeout': ai_service_config.get('timeout', 30),
+                'max_retries': ai_service_config.get('max_retries', 3)
             }
         })
         

@@ -925,12 +925,26 @@ async function startGeneration() {
   const apiVersionSelected = document.getElementById("apiVersionSelect").value !== ""
 
   if (!caseFileUploaded) {
-    alert("请先上传需要生成的用例文件")
+    showFriendlyError("请先上传需要生成的用例文件", {
+      showSuggestions: true,
+      suggestions: [
+        "点击上传区域选择XML格式的用例文件",
+        "确保文件格式正确且完整",
+        "如需帮助，请查看使用说明"
+      ]
+    });
     return
   }
 
   if (!apiVersionSelected) {
-    alert("请选择接口文档版本")
+    showFriendlyError("请选择接口文档版本", {
+      showSuggestions: true,
+      suggestions: [
+        "在下拉菜单中选择对应的API版本",
+        "如不确定版本，请咨询相关人员",
+        "选择最新版本通常是安全的选择"
+      ]
+    });
     return
   }
 
@@ -938,6 +952,9 @@ async function startGeneration() {
   resetAllStatesForNewGeneration();
 
   hideActionButtons()
+
+  // 显示加载指示器
+  const loadingId = showLoadingIndicator("正在上传文件并分析...");
 
   // 禁用生成按钮并显示生成中状态
   elements.generateBtn.disabled = true
@@ -977,13 +994,14 @@ async function startGeneration() {
     if (isFirstGeneration) {
       // 第一次生成：清空聊天记录
       elements.chatMessages.innerHTML = '';
-      addMessage("正在连接AI服务...", "ai");
       isFirstGeneration = false;
     } else {
       // 后续生成：保留对话历史，添加会话分隔符
       addSessionSeparator();
-      addMessage("开始新的生成会话...", "ai");
     }
+    
+    // 更新加载消息
+    updateLoadingMessage(loadingId, "正在连接AI服务...");
     
     // 调用后台API开始生成任务
     const response = await fetch(`${API_BASE_URL}/generation/start`, {
@@ -993,31 +1011,456 @@ async function startGeneration() {
     
     const result = await response.json();
     
+    // 隐藏加载指示器
+    hideLoadingIndicator(loadingId);
+    
     if (result.success) {
       currentSessionId = result.session_id;
-      addMessage("文件上传成功，正在分析您的用例文件...", "ai");
       
-      if (result.analysis_result) {
-        addMessage(result.analysis_result, "ai");
+      // 显示响应时间信息（如果有）
+      if (result.response_time) {
+        const responseTime = result.response_time.toFixed(2);
+        console.log(`文件处理完成，响应时间: ${responseTime}s`);
+        
+        if (result.response_time > 3.0) {
+          addMessage(`文件处理完成（耗时 ${responseTime}s，稍长于预期，我们正在优化性能）`, "ai");
+        }
       }
       
-      // 开始AI对话交互
-      addMessage(
-        "我已经分析了您的用例模板。为了生成更准确的测试用例，请问：\n\n1. 这个系统主要的用户群体是谁？\n2. 是否有特殊的安全性要求？",
-        "ai",
-      );
+      // 处理自动分析结果
+      await handleUploadComplete(result);
     } else {
       throw new Error(result.message || '启动生成任务失败');
     }
     
   } catch (error) {
     console.error('启动生成失败:', error);
-    addMessage(`启动生成失败: ${error.message}`, "ai");
+    
+    // 隐藏加载指示器
+    hideLoadingIndicator(loadingId);
+    
+    // 显示友好的错误消息
+    showFriendlyError(error.message, {
+      showSuggestions: true,
+      showRetryButton: true,
+      retryAction: () => startGeneration()
+    });
     
     // 恢复UI状态
     resetGenerateButtonState();
     disableChatInput();
     isGenerating = false;
+  }
+}
+
+/**
+ * 处理文件上传完成后的自动分析
+ * @param {Object} response - 后端返回的响应数据
+ */
+async function handleUploadComplete(response) {
+  try {
+    // 1. 检查是否启动了自动分析
+    if (response.auto_chat_started) {
+      console.log('🤖 检测到自动分析已启动');
+      
+      // 显示用户发送的消息（包含文件名和用例描述）
+      const uploadedFileName = getUploadedFileName();
+      if (uploadedFileName && response.initial_analysis) {
+        let userMessage = `我上传了一个测试用例文件：${uploadedFileName}\n\n`;
+        
+        // 如果有提取的用例描述，显示出来
+        if (response.initial_analysis.description) {
+          userMessage += `以下是文件中的测试用例内容：\n\n${response.initial_analysis.description}\n\n`;
+        }
+        
+        userMessage += `请帮我分析这个测试用例，并提出完善建议。我希望能够生成更完整和规范的测试用例。`;
+        
+        addMessage(userMessage, "user");
+      } else if (uploadedFileName) {
+        // 如果没有用例描述，只显示文件名
+        addMessage(`我上传了用例文件：${uploadedFileName}`, "user");
+      }
+      
+      // 显示AI的回复（Dify的响应）
+      if (response.message) {
+        addMessage(response.message, "ai");
+      }
+      
+    } else {
+      // 没有自动分析，显示文件名作为用户消息
+      const uploadedFileName = getUploadedFileName();
+      if (uploadedFileName) {
+        addMessage(`我上传了用例文件：${uploadedFileName}`, "user");
+      }
+      
+      // 显示默认的AI回复
+      if (response.analysis_result) {
+        addMessage(response.analysis_result, "ai");
+      } else {
+        addMessage(
+          "我已经收到了您的用例文件。为了生成更准确的测试用例，请问：\n\n1. 这个系统主要的用户群体是谁？\n2. 是否有特殊的安全性要求？",
+          "ai"
+        );
+      }
+    }
+    
+  } catch (error) {
+    console.error('处理上传完成事件失败:', error);
+    
+    // 降级处理：显示基本的成功消息
+    const uploadedFileName = getUploadedFileName();
+    if (uploadedFileName) {
+      addMessage(`我上传了用例文件：${uploadedFileName}`, "user");
+    }
+    addMessage("文件上传成功，请开始与AI对话来生成测试用例。", "ai");
+  }
+}
+
+/**
+ * 获取上传的文件名
+ * @returns {string} 文件名
+ */
+function getUploadedFileName() {
+  // 获取用例模板文件名
+  if (elements.caseFileDisplay && elements.caseFileDisplay.style.display === "flex") {
+    return elements.caseFileName ? elements.caseFileName.textContent : "用例文件";
+  }
+  return null;
+}
+
+/**
+ * 显示加载状态指示器
+ * @param {string} message - 加载消息
+ * @param {string} containerId - 容器ID
+ * @returns {string} 加载指示器ID
+ */
+function showLoadingIndicator(message = "处理中...", containerId = "chatMessages") {
+  const loadingId = `loading_${Date.now()}`;
+  const container = document.getElementById(containerId);
+  
+  if (!container) {
+    console.error(`容器不存在: ${containerId}`);
+    return null;
+  }
+  
+  const loadingHtml = `
+    <div class="loading-indicator" id="${loadingId}">
+      <div class="loading-spinner">
+        <div class="spinner"></div>
+      </div>
+      <div class="loading-message">${message}</div>
+      <div class="loading-dots">
+        <span class="dot"></span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+      </div>
+    </div>
+  `;
+  
+  const loadingDiv = document.createElement("div");
+  loadingDiv.className = "message ai-message";
+  loadingDiv.innerHTML = `
+    <div class="message-avatar">Agent</div>
+    <div class="message-content">${loadingHtml}</div>
+  `;
+  
+  container.appendChild(loadingDiv);
+  container.scrollTop = container.scrollHeight;
+  
+  return loadingId;
+}
+
+/**
+ * 隐藏加载状态指示器
+ * @param {string} loadingId - 加载指示器ID
+ */
+function hideLoadingIndicator(loadingId) {
+  if (loadingId) {
+    const loadingElement = document.getElementById(loadingId);
+    if (loadingElement) {
+      const messageElement = loadingElement.closest('.message');
+      if (messageElement) {
+        messageElement.remove();
+      }
+    }
+  }
+}
+
+/**
+ * 更新加载状态指示器的消息
+ * @param {string} loadingId - 加载指示器ID
+ * @param {string} message - 新的加载消息
+ */
+function updateLoadingMessage(loadingId, message) {
+  if (loadingId) {
+    const loadingElement = document.getElementById(loadingId);
+    if (loadingElement) {
+      const messageElement = loadingElement.querySelector('.loading-message');
+      if (messageElement) {
+        messageElement.textContent = message;
+      }
+    }
+  }
+}
+
+/**
+ * 显示友好的错误消息
+ * @param {string} error - 错误信息
+ * @param {Object} options - 选项
+ */
+function showFriendlyError(error, options = {}) {
+  const {
+    showSuggestions = true,
+    showRetryButton = false,
+    retryAction = null
+  } = options;
+  
+  // 错误消息映射
+  const errorMessages = {
+    'network': {
+      title: '网络连接异常',
+      message: '请检查您的网络连接后重试',
+      suggestions: [
+        '检查网络连接是否正常',
+        '尝试刷新页面',
+        '如果问题持续，请联系技术支持'
+      ]
+    },
+    'timeout': {
+      title: '请求超时',
+      message: '服务器响应时间过长，请稍后重试',
+      suggestions: [
+        '请稍等片刻后重试',
+        '检查上传文件大小是否过大',
+        '尝试分批处理文件'
+      ]
+    },
+    'file_format': {
+      title: '文件格式错误',
+      message: '上传的文件格式不正确或文件已损坏',
+      suggestions: [
+        '请确保上传的是有效的XML文件',
+        '检查文件是否完整，没有损坏',
+        '尝试重新生成或获取文件'
+      ]
+    },
+    'session_expired': {
+      title: '会话已过期',
+      message: '当前会话已过期，请重新开始',
+      suggestions: [
+        '点击"开始生成"按钮重新开始',
+        '重新上传文件',
+        '如需帮助，请查看使用说明'
+      ]
+    }
+  };
+  
+  // 根据错误内容匹配错误类型
+  let errorType = 'unknown';
+  const errorLower = error.toLowerCase();
+  
+  if (errorLower.includes('网络') || errorLower.includes('network')) {
+    errorType = 'network';
+  } else if (errorLower.includes('超时') || errorLower.includes('timeout')) {
+    errorType = 'timeout';
+  } else if (errorLower.includes('xml') || errorLower.includes('格式')) {
+    errorType = 'file_format';
+  } else if (errorLower.includes('会话') || errorLower.includes('session')) {
+    errorType = 'session_expired';
+  }
+  
+  const errorInfo = errorMessages[errorType] || {
+    title: '操作失败',
+    message: error,
+    suggestions: ['请稍后重试', '如果问题持续，请联系技术支持']
+  };
+  
+  let errorHtml = `
+    <div class="error-message">
+      <div class="error-header">
+        <div class="error-icon">⚠️</div>
+        <div class="error-title">${errorInfo.title}</div>
+      </div>
+      <div class="error-content">${errorInfo.message}</div>
+  `;
+  
+  if (showSuggestions && errorInfo.suggestions) {
+    errorHtml += `
+      <div class="error-suggestions">
+        <div class="suggestions-title">建议解决方案：</div>
+        <ul class="suggestions-list">
+          ${errorInfo.suggestions.map(suggestion => `<li>${suggestion}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+  }
+  
+  errorHtml += `</div>`;
+  
+  addMessage(errorHtml, "ai");
+}
+
+/**
+ * 处理生成按钮点击事件
+ * 统一的生成按钮响应处理方法
+ */
+async function handleGenerateClick(buttonElement) {
+  try {
+    // 防止重复点击
+    if (buttonElement.disabled || isGenerating) {
+      console.log('⚠️ 按钮已禁用或正在生成中，忽略点击');
+      return;
+    }
+    
+    console.log('✅ 开始处理生成按钮点击');
+    
+    // 禁用按钮并更新状态
+    buttonElement.disabled = true;
+    const originalText = buttonElement.textContent;
+    buttonElement.textContent = "生成中...";
+    
+    // 添加加载状态指示
+    buttonElement.classList.add('loading');
+    
+    try {
+      await startGeneratingCases();
+    } catch (error) {
+      console.error('生成失败:', error);
+      
+      // 显示用户友好的错误消息
+      let userMessage = "生成失败，请稍后重试。";
+      
+      if (error.message.includes('会话')) {
+        userMessage = "会话已过期，请重新开始对话。";
+      } else if (error.message.includes('网络')) {
+        userMessage = "网络连接异常，请检查网络后重试。";
+      } else if (error.message.includes('409')) {
+        userMessage = "系统繁忙，请稍等片刻后重试。";
+      }
+      
+      addMessage(userMessage, "ai");
+      
+      // 恢复按钮状态
+      buttonElement.disabled = false;
+      buttonElement.textContent = originalText;
+      buttonElement.classList.remove('loading');
+      
+      // 重置生成状态
+      resetGeneratingState();
+    }
+    
+  } catch (error) {
+    console.error('处理生成按钮点击失败:', error);
+    addMessage("系统异常，请刷新页面后重试。", "ai");
+  }
+}
+
+/**
+ * 优化的流式响应处理
+ * 改进错误处理和进度反馈
+ */
+async function handleStreamResponse(response, progressFill, progressPercent) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let lastProgressUpdate = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      
+      if (done) {
+        console.log('📄 流式响应读取完成');
+        break;
+      }
+      
+      buffer += decoder.decode(value, { stream: true });
+      
+      // 处理完整的数据行
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // 保留不完整的行
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            console.log('📊 收到数据:', data);
+            
+            if (data.type === 'progress') {
+              // 优化进度更新，避免过于频繁的DOM操作
+              const progressValue = data.data.progress || 0;
+              const now = Date.now();
+              
+              if (now - lastProgressUpdate > 100 || progressValue === 100) { // 限制更新频率
+                if (progressFill && progressPercent) {
+                  progressFill.style.width = progressValue + "%";
+                  progressPercent.textContent = progressValue + "%";
+                  console.log('📈 进度更新:', progressValue + '%');
+                }
+                lastProgressUpdate = now;
+              }
+              
+              // 显示进度相关的状态消息
+              if (data.data.status) {
+                console.log('📝 状态更新:', data.data.status);
+              }
+              
+            } else if (data.type === 'complete') {
+              // 生成完成
+              console.log('🎉 生成完成');
+              
+              if (progressFill && progressPercent) {
+                progressFill.style.width = "100%";
+                progressPercent.textContent = "100%";
+              }
+              
+              // 存储生成的测试用例
+              testCases = data.data.test_cases || [];
+              console.log('📋 测试用例数量:', testCases.length);
+              
+              // 验证测试用例数据完整性
+              if (testCases.length === 0) {
+                console.warn('⚠️ 生成的测试用例为空');
+                addMessage("生成完成，但未生成任何测试用例。请检查输入文件格式。", "ai");
+              } else {
+                addTestCaseCard();
+                showActionButtons();
+              }
+              
+              return { success: true, testCases };
+              
+            } else if (data.type === 'error') {
+              console.error('❌ 生成过程错误:', data.data.message);
+              throw new Error(data.data.message || '生成过程中发生错误');
+              
+            } else if (data.type === 'warning') {
+              // 处理警告消息
+              console.warn('⚠️ 生成警告:', data.data.message);
+              if (data.data.message) {
+                addMessage(`提醒：${data.data.message}`, "ai");
+              }
+            }
+            
+          } catch (parseError) {
+            console.error('解析流数据失败:', parseError, '原始数据:', line);
+            // 不中断流处理，继续处理下一行
+          }
+        }
+      }
+    }
+    
+    return { success: true };
+    
+  } catch (error) {
+    console.error('流式响应处理失败:', error);
+    throw error;
+  } finally {
+    // 确保资源清理
+    try {
+      reader.releaseLock();
+    } catch (e) {
+      console.warn('释放reader锁失败:', e);
+    }
   }
 }
 
@@ -1201,26 +1644,8 @@ async function showGenerateButton() {
       event.preventDefault();
       event.stopPropagation();
       
-      // 防止重复点击
-      if (this.disabled || isGenerating) {
-        console.log('⚠️ 按钮已禁用或正在生成中，忽略点击');
-        return;
-      }
-      
-      console.log('✅ 开始处理按钮点击');
-      
-      // 禁用按钮
-      this.disabled = true;
-      this.textContent = "生成中...";
-      
-      try {
-        await startGeneratingCases();
-      } catch (error) {
-        console.error('生成失败:', error);
-        alert('生成失败: ' + error.message);
-        // 恢复按钮状态
-        resetGeneratingState();
-      }
+      // 使用统一的按钮处理方法
+      await handleGenerateClick(this);
     });
     
     console.log('✅ 按钮事件绑定完成');
@@ -1327,64 +1752,8 @@ async function startGeneratingCases() {
 
     console.log('✅ API请求成功，开始处理流式响应');
 
-    // 处理流式响应
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      
-      if (done) {
-        console.log('📄 流式响应读取完成');
-        break;
-      }
-      
-      buffer += decoder.decode(value, { stream: true });
-      
-      // 处理完整的数据行
-      const lines = buffer.split('\n');
-      buffer = lines.pop(); // 保留不完整的行
-      
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(line.slice(6));
-            console.log('📊 收到数据:', data);
-            
-            if (data.type === 'progress') {
-              // 更新进度
-              if (progressFill && progressPercent) {
-                const progressValue = data.data.progress || 0;
-                progressFill.style.width = progressValue + "%";
-                progressPercent.textContent = progressValue + "%";
-                console.log('📈 进度更新:', progressValue + '%');
-              }
-            } else if (data.type === 'complete') {
-              // 生成完成
-              console.log('🎉 生成完成');
-              
-              if (progressFill && progressPercent) {
-                progressFill.style.width = "100%";
-                progressPercent.textContent = "100%";
-              }
-              
-              // 存储生成的测试用例
-              testCases = data.data.test_cases || [];
-              console.log('📋 测试用例数量:', testCases.length);
-              addTestCaseCard();
-              showActionButtons();
-              break;
-            } else if (data.type === 'error') {
-              console.error('❌ 生成过程错误:', data.data.message);
-              throw new Error(data.data.message || '生成过程中发生错误');
-            }
-          } catch (e) {
-            console.error('解析流数据失败:', e);
-          }
-        }
-      }
-    }
+    // 使用优化的流式响应处理
+    await handleStreamResponse(response, progressFill, progressPercent);
     
   } catch (error) {
     console.error('生成测试用例失败:', error);

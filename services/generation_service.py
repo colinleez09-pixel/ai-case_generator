@@ -28,7 +28,35 @@ class GenerationService:
     
     def start_generation_task(self, files: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         """
-        启动生成任务
+        启动生成任务 - 同步包装方法
+        
+        Args:
+            files: 上传的文件字典 {file_type: FileStorage}
+            config: 配置信息
+            
+        Returns:
+            Dict[str, Any]: 启动结果
+        """
+        import asyncio
+        
+        # 如果当前没有事件循环，创建一个新的
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # 如果事件循环正在运行，使用create_task
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, self._start_generation_task_async(files, config))
+                    return future.result()
+            else:
+                return loop.run_until_complete(self._start_generation_task_async(files, config))
+        except RuntimeError:
+            # 没有事件循环，创建新的
+            return asyncio.run(self._start_generation_task_async(files, config))
+    
+    async def _start_generation_task_async(self, files: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        启动生成任务 - 异步实现
         
         Args:
             files: 上传的文件字典 {file_type: FileStorage}
@@ -71,10 +99,10 @@ class GenerationService:
                     'message': '缺少必需的用例模板文件'
                 }
             
-            # 3. 分析上传的文件
+            # 3. 分析上传的文件（但不发送给Dify，避免重复调用）
             try:
-                analysis_result = self.ai_service.analyze_files(files_info)
-                logger.info(f"文件分析完成: {session_id}")
+                analysis_result = self.ai_service.analyze_files(files_info, skip_dify_call=True)
+                logger.info(f"文件分析完成（跳过Dify调用）: {session_id}")
             except Exception as e:
                 logger.error(f"文件分析失败: {session_id}, {e}")
                 analysis_result = {
@@ -104,6 +132,50 @@ class GenerationService:
             # 5. 构建初始消息
             initial_message = self._build_initial_message(analysis_result)
             
+            # 新增：自动解析并发送给AI (新增功能)
+            logger.info(f"检查自动分析条件: analysis_result.success = {analysis_result.get('success', True)}")
+            if analysis_result.get('success', True):
+                try:
+                    logger.info(f"开始自动分析流程: {session_id}")
+                    # 先提取用例描述
+                    extracted_content = self._extract_test_case_content(files_info)
+                    logger.info(f"提取用例内容成功: {len(extracted_content)} 字符")
+                    
+                    # 将提取的内容添加到analysis_result中
+                    analysis_result['description'] = extracted_content
+                    analysis_result['extracted_content'] = extracted_content
+                    
+                    auto_analysis_result = await self.auto_analyze_and_chat(session_id, files_info)
+                    logger.info(f"自动分析结果: success={auto_analysis_result.get('success')}")
+                    
+                    if auto_analysis_result.get('success'):
+                        # 更新会话状态为chatting，准备接收用户输入
+                        self.session_service.update_session_data(session_id, {
+                            'status': 'chatting',
+                            'initial_ai_response': auto_analysis_result.get('reply', ''),
+                            'dify_conversation_id': auto_analysis_result.get('conversation_id'),
+                            'extracted_content': extracted_content
+                        })
+                        logger.info(f"自动分析完成: {session_id}")
+                        return {
+                            'success': True,
+                            'session_id': session_id,
+                            'message': auto_analysis_result.get('reply', '文件分析完成'),
+                            'initial_analysis': analysis_result,
+                            'auto_chat_started': True,
+                            'files_processed': len(files_info),
+                            'extracted_content': extracted_content
+                        }
+                    else:
+                        logger.warning(f"自动分析失败: {auto_analysis_result.get('error', 'unknown')}")
+                except Exception as e:
+                    logger.error(f"自动分析异常: {session_id}, {e}")
+                    import traceback
+                    logger.error(f"异常详情: {traceback.format_exc()}")
+            else:
+                logger.info(f"跳过自动分析: analysis_result.success = {analysis_result.get('success')}")
+            
+            # 原有返回逻辑保持不变
             return {
                 'success': True,
                 'session_id': session_id,
@@ -564,3 +636,101 @@ class GenerationService:
                     requirements.append(user_message)
         
         return requirements
+    
+    async def auto_analyze_and_chat(self, session_id: str, files_info: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        自动分析文件并发送给Dify (修改为以用户口吻发送) - 只发送一条消息
+        
+        Args:
+            session_id: 会话ID
+            files_info: 文件信息
+            
+        Returns:
+            Dict[str, Any]: Dify分析结果
+        """
+        try:
+            # 1. 解析XML文件内容（只提取第一个测试用例）
+            extracted_content = self._extract_test_case_content(files_info)
+            logger.info(f"提取第一个测试用例内容成功: {session_id}, 内容长度: {len(extracted_content)}")
+            
+            # 2. 构建以用户口吻发送给Dify的消息
+            # 获取文件名
+            file_name = "用例文件"
+            if 'case_template' in files_info:
+                file_name = files_info['case_template'].get('original_name', 
+                           files_info['case_template'].get('original_filename', '用例文件'))
+            
+            # 以用户的口吻描述用例内容（确保只发送一条消息）
+            message = f"""我上传了一个测试用例文件：{file_name}
+
+以下是文件中第一个测试用例的内容：
+
+{extracted_content}
+
+请帮我分析这个测试用例，并提出完善建议。我希望能够生成更完整和规范的测试用例。"""
+            
+            # 3. 发送给AI服务（以用户身份）- 确保只调用一次
+            context = {
+                'files_info': files_info,
+                'extracted_content': extracted_content,
+                'session_id': session_id,
+                'user_initiated': True,  # 标记这是用户发起的消息
+                'file_name': file_name,
+                'auto_analysis': True,  # 标记这是自动分析
+                'single_message': True  # 确保只发送一条消息
+            }
+            
+            logger.info(f"开始自动分析对话（以用户身份，只发送一条消息）: {session_id}")
+            logger.info(f"消息内容预览: {message[:100]}...")
+            
+            response = await self.ai_service.chat_with_agent(session_id, message, context)
+            
+            if response.get('success'):
+                logger.info(f"自动分析对话成功: {session_id}, conversation_id: {response.get('conversation_id', 'N/A')}")
+                return response
+            else:
+                logger.error(f"自动分析对话失败: {session_id}, error: {response.get('error', 'unknown')}")
+                return {'success': False, 'error': response.get('error', 'chat_failed')}
+            
+        except Exception as e:
+            logger.error(f"自动分析和对话异常: {session_id}, {e}")
+            import traceback
+            logger.error(f"异常堆栈: {traceback.format_exc()}")
+            return {'success': False, 'error': str(e)}
+    
+    def _extract_test_case_content(self, files_info: Dict[str, Any]) -> str:
+        """
+        从文件信息中提取测试用例内容 (新增方法)
+        
+        Args:
+            files_info: 文件信息字典
+            
+        Returns:
+            str: 提取的测试用例描述
+        """
+        if 'case_template' not in files_info:
+            logger.warning("未找到case_template文件，使用默认模板")
+            return self._get_default_test_case_template()
+        
+        try:
+            file_path = files_info['case_template']['file_path']
+            extracted_content = self.file_service.extract_test_case_description(file_path)
+            logger.info(f"成功提取XML内容: {file_path}")
+            return extracted_content
+        except Exception as e:
+            logger.warning(f"XML解析失败，使用默认模板: {e}")
+            return self._get_default_test_case_template()
+    
+    def _get_default_test_case_template(self) -> str:
+        """获取默认测试用例模板"""
+        return """【预置条件】
+1. CBS系统运行正常
+2. 修改系统变量SYS_abc的值为12
+3. 设置变量，初始金额为100
+
+【测试步骤】
+1. 进行调账，调减20元
+
+【预期结果】
+1. 调账成功
+2. account_balance表amount字段值为80"""

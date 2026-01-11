@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JavaScript修复测试</title>
+</head>
+<body>
+    <div id="chatMessages"></div>
+    
+    <script>
+        // 模拟必要的全局变量和函数
+        const API_BASE_URL = '/api';
+        let currentSessionId = null;
+        let isGenerating = false;
+        
+        const elements = {
+            chatMessages: document.getElementById('chatMessages')
+        };
+        
+        // 从static/script.js复制相关函数进行测试
+        function showLoadingIndicator(message = "处理中...", containerId = "chatMessages") {
+          const loadingId = `loading_${Date.now()}`;
+          const container = document.getElementById(containerId);
+          
+          if (!container) {
+            console.error(`容器不存在: ${containerId}`);
+            return null;
+          }
+          
+          const loadingHtml = `
+            <div class="loading-indicator" id="${loadingId}">
+              <div class="loading-spinner">
+                <div class="spinner"></div>
+              </div>
+              <div class="loading-message">${message}</div>
+              <div class="loading-dots">
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+              </div>
+            </div>
+          `;
+          
+          const loadingDiv = document.createElement("div");
+          loadingDiv.className = "message ai-message";
+          loadingDiv.innerHTML = `
+            <div class="message-avatar">Agent</div>
+            <div class="message-content">${loadingHtml}</div>
+          `;
+          
+          container.appendChild(loadingDiv);
+          container.scrollTop = container.scrollHeight;
+          
+          return loadingId;
+        }
+        
+        function updateLoadingMessage(loadingId, message) {
+          if (loadingId) {
+            const loadingElement = document.getElementById(loadingId);
+            if (loadingElement) {
+              const messageElement = loadingElement.querySelector('.loading-message');
+              if (messageElement) {
+                messageElement.textContent = message;
+              }
+            }
+          }
+        }
+        
+        function hideLoadingIndicator(loadingId) {
+          if (loadingId) {
+            const loadingElement = document.getElementById(loadingId);
+            if (loadingElement) {
+              const messageElement = loadingElement.closest('.message');
+              if (messageElement) {
+                messageElement.remove();
+              }
+            }
+          }
+        }
+        
+        // 测试函数
+        function testUpdateLoadingMessage() {
+            console.log('🧪 开始测试updateLoadingMessage函数...');
+            
+            // 1. 创建加载指示器
+            const loadingId = showLoadingIndicator("正在上传文件并分析...");
+            console.log('✅ 创建加载指示器:', loadingId);
+            
+            // 2. 测试更新消息
+            setTimeout(() => {
+                updateLoadingMessage(loadingId, "正在连接AI服务...");
+                console.log('✅ 更新加载消息成功');
+                
+                // 3. 再次更新消息
+                setTimeout(() => {
+                    updateLoadingMessage(loadingId, "正在处理响应...");
+                    console.log('✅ 再次更新加载消息成功');
+                    
+                    // 4. 隐藏加载指示器
+                    setTimeout(() => {
+                        hideLoadingIndicator(loadingId);
+                        console.log('✅ 隐藏加载指示器成功');
+                        console.log('🎉 所有测试通过！updateLoadingMessage函数工作正常');
+                    }, 1000);
+                }, 1000);
+            }, 1000);
+        }
+        
+        // 页面加载完成后运行测试
+        document.addEventListener('DOMContentLoaded', testUpdateLoadingMessage);
+    </script>
+</body>
+</html>

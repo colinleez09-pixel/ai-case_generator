@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testcases>
+    <testcase id="TC001" name="用户注册功能测试">
+        <preconditions>
+            <precondition index="1" name="系统环境准备">
+                <component type="system" name="用户管理系统">
+                    <params>
+                        <param name="status">运行中</param>
+                        <param name="version">v2.1.0</param>
+                    </params>
+                </component>
+            </precondition>
+            <precondition index="2" name="数据库连接">
+                <component type="database" name="MySQL">
+                    <params>
+                        <param name="host">localhost</param>
+                        <param name="port">3306</param>
+                    </params>
+                </component>
+            </precondition>
+        </preconditions>
+        
+        <steps>
+            <step index="1" name="访问注册页面">
+                <component type="browser" name="Chrome">
+                    <params>
+                        <param name="url">http://localhost:8080/register</param>
+                        <param name="method">GET</param>
+                    </params>
+                </component>
+            </step>
+            <step index="2" name="填写注册信息">
+                <component type="form" name="注册表单">
+                    <params>
+                        <param name="username">testuser001</param>
+                        <param name="email">test@example.com</param>
+                        <param name="password">Test123456</param>
+                    </params>
+                </component>
+            </step>
+            <step index="3" name="提交注册">
+                <component type="button" name="注册按钮">
+                    <params>
+                        <param name="action">click</param>
+                    </params>
+                </component>
+            </step>
+        </steps>
+        
+        <expectedResults>
+            <expectedResult index="1" name="注册成功提示">
+                <component type="message" name="成功提示">
+                    <params>
+                        <param name="text">注册成功，请查收激活邮件</param>
+                        <param name="type">success</param>
+                    </params>
+                </component>
+            </expectedResult>
+            <expectedResult index="2" name="用户数据保存">
+                <component type="database" name="用户表">
+                    <params>
+                        <param name="table">users</param>
+                        <param name="username">testuser001</param>
+                        <param name="status">pending</param>
+                    </params>
+                </component>
+            </expectedResult>
+        </expectedResults>
+    </testcase>
+    
+    <testcase id="TC002" name="用户登录功能测试">
+        <preconditions>
+            <precondition index="1" name="用户已注册">
+                <component type="database" name="用户数据">
+                    <params>
+                        <param name="username">testuser001</param>
+                        <param name="status">active</param>
+                    </params>
+                </component>
+            </precondition>
+        </preconditions>
+        
+        <steps>
+            <step index="1" name="访问登录页面">
+                <component type="browser" name="Chrome">
+                    <params>
+                        <param name="url">http://localhost:8080/login</param>
+                    </params>
+                </component>
+            </step>
+            <step index="2" name="输入登录凭据">
+                <component type="form" name="登录表单">
+                    <params>
+                        <param name="username">testuser001</param>
+                        <param name="password">Test123456</param>
+                    </params>
+                </component>
+            </step>
+            <step index="3" name="点击登录">
+                <component type="button" name="登录按钮">
+                    <params>
+                        <param name="action">click</param>
+                    </params>
+                </component>
+            </step>
+        </steps>
+        
+        <expectedResults>
+            <expectedResult index="1" name="登录成功跳转">
+                <component type="page" name="用户首页">
+                    <params>
+                        <param name="url">http://localhost:8080/dashboard</param>
+                        <param name="title">用户控制台</param>
+                    </params>
+                </component>
+            </expectedResult>
+        </expectedResults>
+    </testcase>
+</testcases>

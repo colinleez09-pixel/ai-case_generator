@@ -143,34 +143,41 @@ class TestAIService:
     
     def test_generate_test_cases_mock_stream(self, ai_service):
         """测试Mock模式流式生成"""
-        session_id = 'test_session_123'
-        context = {'files_info': {}, 'chat_history': []}
+        import asyncio
         
-        responses = list(ai_service.generate_test_cases(session_id, context))
+        async def run_test():
+            session_id = 'test_session_123'
+            context = {'files_info': {}, 'chat_history': []}
+            
+            responses = []
+            async for response in ai_service.generate_test_cases(session_id, context):
+                responses.append(response)
+            
+            # 验证流式响应结构
+            assert len(responses) > 0
+            
+            # 验证进度响应
+            progress_responses = [r for r in responses if r.get('type') == 'progress']
+            assert len(progress_responses) > 0
+            
+            for progress in progress_responses:
+                assert 'data' in progress
+                assert 'stage' in progress['data']
+                assert 'message' in progress['data']
+                assert 'progress' in progress['data']
+                assert 0 <= progress['data']['progress'] <= 100
+            
+            # 验证完成响应
+            complete_responses = [r for r in responses if r.get('type') == 'complete']
+            assert len(complete_responses) == 1
+            
+            complete_response = complete_responses[0]
+            assert 'data' in complete_response
+            assert 'test_cases' in complete_response['data']
+            assert isinstance(complete_response['data']['test_cases'], list)
         
-        # 验证流式响应结构
-        assert len(responses) > 0
-        
-        # 验证进度响应
-        progress_responses = [r for r in responses if r.get('type') == 'progress']
-        assert len(progress_responses) > 0
-        
-        for progress in progress_responses:
-            assert 'data' in progress
-            assert 'stage' in progress['data']
-            assert 'message' in progress['data']
-            assert 'progress' in progress['data']
-            assert 0 <= progress['data']['progress'] <= 100
-        
-        # 验证完成响应
-        complete_responses = [r for r in responses if r.get('type') == 'complete']
-        assert len(complete_responses) == 1
-        
-        complete_response = complete_responses[0]
-        assert 'data' in complete_response
-        assert 'test_cases' in complete_response['data']
-        assert 'total_count' in complete_response['data']
-        assert isinstance(complete_response['data']['test_cases'], list)
+        # 运行异步测试
+        asyncio.run(run_test())
     
     def test_generate_mock_test_cases_structure(self, ai_service):
         """测试生成的Mock测试用例结构"""

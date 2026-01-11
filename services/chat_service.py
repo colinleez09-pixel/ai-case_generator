@@ -95,8 +95,69 @@ class ChatService:
             # 获取对话上下文
             context = self._build_chat_context(session_data)
             
-            # 调用AI服务获取回复
-            ai_response = self.ai_service.chat_with_agent(session_id, message, context)
+            # 获取Dify对话ID（用于多轮对话）
+            dify_conversation_id = self.session_service.get_dify_conversation_id(session_id)
+            context['dify_conversation_id'] = dify_conversation_id
+            
+            # 获取Dify系统参数（用于多轮对话）
+            dify_system_params = self.session_service.get_dify_system_params(session_id)
+            context['dify_system_params'] = dify_system_params
+            
+            logger.info(f"当前Dify对话ID: session_id={session_id}, dify_conversation_id={dify_conversation_id}")
+            logger.debug(f"当前Dify系统参数: {dify_system_params}")
+            
+            # 调用AI服务获取回复 - 使用异步调用
+            import asyncio
+            
+            async def call_ai_service():
+                return await self.ai_service.chat_with_agent(session_id, message, context)
+            
+            try:
+                # 检查是否已经在事件循环中
+                try:
+                    loop = asyncio.get_running_loop()
+                    # 如果已经在事件循环中，需要使用不同的方法
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(asyncio.run, call_ai_service())
+                        ai_response = future.result()
+                except RuntimeError:
+                    # 如果没有运行的事件循环，直接运行
+                    ai_response = asyncio.run(call_ai_service())
+            except Exception as loop_error:
+                logger.error(f"事件循环处理失败: {loop_error}")
+                # 降级到Mock处理
+                ai_response = {'reply': '抱歉，服务暂时不可用，请稍后重试。', 'need_more_info': True}
+            
+            # 检查是否是conversation过期的情况
+            if ai_response.get('conversation_expired'):
+                expired_conversation_id = ai_response.get('expired_conversation_id')
+                logger.warning(f"Conversation过期，清除并重试: {expired_conversation_id}")
+                
+                # 清除过期的conversation_id
+                self.session_service.clear_dify_conversation_id(session_id)
+                
+                # 重新调用AI服务（这次不会有conversation_id）
+                context['dify_conversation_id'] = None
+                try:
+                    ai_response = asyncio.run(call_ai_service())
+                except Exception as retry_error:
+                    logger.error(f"重试调用失败: {retry_error}")
+                    ai_response = {'reply': '抱歉，服务暂时不可用，请稍后重试。', 'need_more_info': True}
+                
+                logger.info(f"重新开始对话成功，新的conversation_id: {ai_response.get('conversation_id')}")
+            
+            # 如果获得了新的conversation_id，保存到SessionService
+            new_conversation_id = ai_response.get('conversation_id')
+            if new_conversation_id and new_conversation_id != dify_conversation_id:
+                self.session_service.update_dify_conversation_id(session_id, new_conversation_id)
+                logger.info(f"保存新的Dify对话ID: session_id={session_id}, conversation_id={new_conversation_id}")
+            
+            # 如果获得了系统参数，保存到SessionService
+            dify_system_params = ai_response.get('dify_system_params')
+            if dify_system_params:
+                self.session_service.update_dify_system_params(session_id, dify_system_params)
+                logger.info(f"保存Dify系统参数: session_id={session_id}, params={dify_system_params}")
             
             # 添加AI回复到对话历史
             ai_reply = ai_response.get('reply', '抱歉，我无法理解您的问题。')
