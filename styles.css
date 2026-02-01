@@ -2566,20 +2566,24 @@ body {
   padding: 24px;
   max-height: 60vh;
   overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .param-config-container {
+    grid-template-columns: 1fr;
+  }
 }
 
 .param-field {
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
 
 .param-field:last-child {
   margin-bottom: 0;
-}
-
-@media (max-width: 768px) {
-  .param-field {
-    margin-bottom: 18px;
-  }
 }
 
 .param-field-label {
@@ -2817,14 +2821,14 @@ body {
 }
 
 #paramConfigModal .modal {
-  max-width: 540px;
+  max-width: 900px;
   width: 90%;
   margin: 0 auto;
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {
   #paramConfigModal .modal {
-    max-width: 520px;
+    max-width: 750px;
     width: 85%;
   }
 }
@@ -2858,6 +2862,16 @@ body {
   max-height: 58vh;
   overflow-y: auto;
   margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  #paramConfigModal .param-config-container {
+    grid-template-columns: 1fr;
+  }
 }
 
 #paramConfigModal .modal-footer {
