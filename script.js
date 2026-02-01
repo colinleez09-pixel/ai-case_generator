@@ -732,7 +732,7 @@ function init() {
   })
 }
 
-// ============ 参数配置��能 ============
+// ============ 参数配置���能 ============
 
 // 收集当前用例中所有已定义的变量
 function collectAllVariables() {
@@ -1878,7 +1878,7 @@ function renderSection(items, container, sectionType) {
                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                   </svg>
                 </button>
-                <button class="icon-btn danger delete-comp-btn" data-section="${sectionType}" data-step-index="${stepIndex}" data-comp-index="${compIndex}" title="删除">
+                <button class="icon-btn danger delete-comp-btn" data-section="${sectionType}" data-step-index="${stepIndex}" data-comp-index="${compIndex}" title="���除">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3 6 5 6 21 6"></polyline>
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -2542,7 +2542,7 @@ function updateSelectedCasesPreview() {
         <div class="selected-preview-name">${tc.name}</div>
         <div class="selected-preview-id">${tc.id}</div>
       </div>
-      <button class="selected-preview-remove" data-id="${tc.id}">移除</button>
+      <button class="selected-preview-remove" data-id="${tc.id}">移���</button>
     </div>
   `).join("")
   
@@ -3606,6 +3606,8 @@ function renderPresetComponentsDropdown() {
         // 使用componentDefaultParams获取默认参数
         const defaultParams = componentDefaultParams[preset.type] || {}
         elements.componentParamsInput.value = JSON.stringify(defaultParams, null, 2)
+        // 更新参数摘要显示
+        updateParamSummary(defaultParams)
         selectedPresetComponent = preset
         dropdown.classList.remove("show")
       }
