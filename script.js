@@ -732,7 +732,7 @@ function init() {
   })
 }
 
-// ============ 参数配置���能 ============
+// ============ 参数配置����能 ============
 
 // 收集当前用例中所有已定义的变量
 function collectAllVariables() {
@@ -2906,7 +2906,7 @@ function renderHistoryEditCaseList() {
     </div>
   `).join("")
   
-  // 绑定点击事件
+  // 绑定点击事���
   elements.historyEditCaseList.querySelectorAll(".case-item-with-actions").forEach(item => {
     item.addEventListener("click", () => {
       currentEditCaseIndex = parseInt(item.dataset.index)
@@ -3595,24 +3595,29 @@ function renderPresetComponentsDropdown() {
     }, 200)
   })
   
-  // 选择预置组件
-  dropdown.querySelectorAll(".select-option").forEach(opt => {
-    opt.addEventListener("click", () => {
-      const presetId = opt.dataset.presetId
-      const preset = presetComponents.find(c => c.id === presetId)
-      if (preset) {
-        elements.componentTypeSelect.value = preset.name
-        elements.componentNameInput.value = preset.description || preset.name
-        // 使用componentDefaultParams获取默认参数
-        const defaultParams = componentDefaultParams[preset.type] || {}
-        elements.componentParamsInput.value = JSON.stringify(defaultParams, null, 2)
-        // 更新参数摘要显示
-        updateParamSummary(defaultParams)
-        selectedPresetComponent = preset
-        dropdown.classList.remove("show")
-      }
-    })
-  })
+  // 选择预置组件 - 使用事件委托代替直接绑定
+  dropdown.onclick = function(e) {
+    const opt = e.target.closest('.select-option')
+    if (!opt) return
+    
+    console.log("[v0] Dropdown option clicked:", opt.dataset.presetId)
+    const presetId = opt.dataset.presetId
+    const preset = presetComponents.find(c => c.id === presetId)
+    console.log("[v0] Found preset:", preset)
+    
+    if (preset) {
+      elements.componentTypeSelect.value = preset.name
+      elements.componentNameInput.value = preset.description || preset.name
+      // 使用componentDefaultParams获取默认参数
+      const defaultParams = componentDefaultParams[preset.type] || {}
+      console.log("[v0] Default params:", defaultParams)
+      elements.componentParamsInput.value = JSON.stringify(defaultParams, null, 2)
+      // 更新参数摘要显示
+      updateParamSummary(defaultParams)
+      selectedPresetComponent = preset
+      dropdown.classList.remove("show")
+    }
+  }
 }
 
 function saveComponentForHistoryEdit() {
