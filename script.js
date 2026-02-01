@@ -732,7 +732,7 @@ function init() {
   })
 }
 
-// ============ 参数配置功能 ============
+// ============ 参数配置��能 ============
 
 // 收集当前用例中所有已定义的变量
 function collectAllVariables() {
@@ -1128,7 +1128,7 @@ function bindAutocompleteEvents() {
       const afterDollarBrace = value.substring(lastDollarBrace)
       const closingBrace = afterDollarBrace.indexOf('}')
       
-      // 如果 } 在光标前，说明已经完成输入，不显示自动完成
+      // 如果 } 在光标前，说明已经完成输入，不��示自动完成
       if (closingBrace !== -1 && closingBrace < cursorPos - lastDollarBrace) {
         dropdown.style.display = 'none'
         return
@@ -3536,11 +3536,15 @@ function openComponentEditForHistoryEdit(stepIndex, compIndex, section) {
     elements.componentTypeSelect.value = presetComp ? presetComp.name : comp.type
     elements.componentNameInput.value = comp.name
     elements.componentParamsInput.value = JSON.stringify(comp.params, null, 2)
+    // 更新参数摘要显示
+    updateParamSummary(comp.params)
   } else {
     elements.componentEditTitle.textContent = "添加组件"
     elements.componentTypeSelect.value = ""
     elements.componentNameInput.value = ""
     elements.componentParamsInput.value = "{}"
+    // 清空参数摘要显示
+    updateParamSummary({})
   }
 
   // 需求2：渲染预置组件的下拉选择
@@ -3837,13 +3841,17 @@ function openComponentEdit(stepIndex, compIndex, section) {
     elements.componentTypeSelect.value = presetComp ? presetComp.name : comp.type
     elements.componentNameInput.value = comp.name
     elements.componentParamsInput.value = JSON.stringify(comp.params, null, 2)
+    // 更新参数摘要显示
+    updateParamSummary(comp.params)
   } else {
     elements.componentEditTitle.textContent = "添加组件"
     elements.componentTypeSelect.value = ""
     elements.componentNameInput.value = ""
     elements.componentParamsInput.value = "{}"
+    // 清空参数摘要显示
+    updateParamSummary({})
   }
-
+  
   // 渲染预置组件下拉列表
   renderPresetComponentsDropdown()
 
