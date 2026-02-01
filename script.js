@@ -732,7 +732,7 @@ function init() {
   })
 }
 
-// ============ 参数配置功能 ============
+// ============ 参数配置����能 ============
 
 // 收集当前用例中所有已定义的变量
 function collectAllVariables() {
@@ -1128,7 +1128,7 @@ function bindAutocompleteEvents() {
       const afterDollarBrace = value.substring(lastDollarBrace)
       const closingBrace = afterDollarBrace.indexOf('}')
       
-      // 如果 } 在光标前，说明已经完成输入，不显示自动完成
+      // 如果 } 在光标前，说明已经完成输入，不��示自动完成
       if (closingBrace !== -1 && closingBrace < cursorPos - lastDollarBrace) {
         dropdown.style.display = 'none'
         return
@@ -1878,7 +1878,7 @@ function renderSection(items, container, sectionType) {
                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                   </svg>
                 </button>
-                <button class="icon-btn danger delete-comp-btn" data-section="${sectionType}" data-step-index="${stepIndex}" data-comp-index="${compIndex}" title="删除">
+                <button class="icon-btn danger delete-comp-btn" data-section="${sectionType}" data-step-index="${stepIndex}" data-comp-index="${compIndex}" title="���除">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3 6 5 6 21 6"></polyline>
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -2542,7 +2542,7 @@ function updateSelectedCasesPreview() {
         <div class="selected-preview-name">${tc.name}</div>
         <div class="selected-preview-id">${tc.id}</div>
       </div>
-      <button class="selected-preview-remove" data-id="${tc.id}">移除</button>
+      <button class="selected-preview-remove" data-id="${tc.id}">移���</button>
     </div>
   `).join("")
   
@@ -2906,7 +2906,7 @@ function renderHistoryEditCaseList() {
     </div>
   `).join("")
   
-  // 绑定点击事件
+  // 绑定点击事���
   elements.historyEditCaseList.querySelectorAll(".case-item-with-actions").forEach(item => {
     item.addEventListener("click", () => {
       currentEditCaseIndex = parseInt(item.dataset.index)
@@ -3536,11 +3536,15 @@ function openComponentEditForHistoryEdit(stepIndex, compIndex, section) {
     elements.componentTypeSelect.value = presetComp ? presetComp.name : comp.type
     elements.componentNameInput.value = comp.name
     elements.componentParamsInput.value = JSON.stringify(comp.params, null, 2)
+    // 更新参数摘要显示
+    updateParamSummary(comp.params)
   } else {
     elements.componentEditTitle.textContent = "添加组件"
     elements.componentTypeSelect.value = ""
     elements.componentNameInput.value = ""
     elements.componentParamsInput.value = "{}"
+    // 清空参数摘要显示
+    updateParamSummary({})
   }
 
   // 需求2：渲染预置组件的下拉选择
@@ -3591,22 +3595,29 @@ function renderPresetComponentsDropdown() {
     }, 200)
   })
   
-  // 选择预置组件
-  dropdown.querySelectorAll(".select-option").forEach(opt => {
-    opt.addEventListener("click", () => {
-      const presetId = opt.dataset.presetId
-      const preset = presetComponents.find(c => c.id === presetId)
-      if (preset) {
-        elements.componentTypeSelect.value = preset.name
-        elements.componentNameInput.value = preset.description || preset.name
-        // 使用componentDefaultParams获取默认参数
-        const defaultParams = componentDefaultParams[preset.type] || {}
-        elements.componentParamsInput.value = JSON.stringify(defaultParams, null, 2)
-        selectedPresetComponent = preset
-        dropdown.classList.remove("show")
-      }
-    })
-  })
+  // 选择预置组件 - 使用事件委托代替直接绑定
+  dropdown.onclick = function(e) {
+    const opt = e.target.closest('.select-option')
+    if (!opt) return
+    
+    console.log("[v0] Dropdown option clicked:", opt.dataset.presetId)
+    const presetId = opt.dataset.presetId
+    const preset = presetComponents.find(c => c.id === presetId)
+    console.log("[v0] Found preset:", preset)
+    
+    if (preset) {
+      elements.componentTypeSelect.value = preset.name
+      elements.componentNameInput.value = preset.description || preset.name
+      // 使用componentDefaultParams获取默认参数
+      const defaultParams = componentDefaultParams[preset.type] || {}
+      console.log("[v0] Default params:", defaultParams)
+      elements.componentParamsInput.value = JSON.stringify(defaultParams, null, 2)
+      // 更新参数摘要显示
+      updateParamSummary(defaultParams)
+      selectedPresetComponent = preset
+      dropdown.classList.remove("show")
+    }
+  }
 }
 
 function saveComponentForHistoryEdit() {
@@ -3837,13 +3848,17 @@ function openComponentEdit(stepIndex, compIndex, section) {
     elements.componentTypeSelect.value = presetComp ? presetComp.name : comp.type
     elements.componentNameInput.value = comp.name
     elements.componentParamsInput.value = JSON.stringify(comp.params, null, 2)
+    // 更新参数摘要显示
+    updateParamSummary(comp.params)
   } else {
     elements.componentEditTitle.textContent = "添加组件"
     elements.componentTypeSelect.value = ""
     elements.componentNameInput.value = ""
     elements.componentParamsInput.value = "{}"
+    // 清空参数摘要显示
+    updateParamSummary({})
   }
-
+  
   // 渲染预置组件下拉列表
   renderPresetComponentsDropdown()
 
