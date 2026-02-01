@@ -732,7 +732,7 @@ function init() {
   })
 }
 
-// ============ 参数配置����能 ============
+// ============ 参数配置�����能 ============
 
 // 收集当前用例中所有已定义的变量
 function collectAllVariables() {
@@ -3291,7 +3291,7 @@ function bindEditableSectionEvents(container, sectionType) {
   container.querySelectorAll(".delete-step-btn").forEach(btn => {
     btn.addEventListener("click", async (e) => {
       e.stopPropagation()
-      const confirmed = await showConfirmDialog("确定要删除此步骤吗？", "删除确认")
+      const confirmed = await showConfirmDialog("确定要删除此步骤吗？", "删除��认")
       if (confirmed) {
         const stepIndex = parseInt(btn.dataset.stepIndex)
         caseTemplate[sectionType].splice(stepIndex, 1)
@@ -3543,7 +3543,7 @@ function openComponentEditForHistoryEdit(stepIndex, compIndex, section) {
     elements.componentTypeSelect.value = ""
     elements.componentNameInput.value = ""
     elements.componentParamsInput.value = "{}"
-    // 清空参数摘要显示
+    // 清空参数���要显示
     updateParamSummary({})
   }
 
@@ -3589,35 +3589,39 @@ function renderPresetComponentsDropdown() {
     dropdown.classList.add("show")
   })
   
+  // 使用mousedown阻止blur事件触发
+  dropdown.addEventListener("mousedown", (e) => {
+    e.preventDefault() // 阻止input失去焦点
+  })
+  
   elements.componentTypeSelect.addEventListener("blur", () => {
     setTimeout(() => {
       dropdown.classList.remove("show")
-    }, 200)
+    }, 150)
   })
   
-  // 选择预置组件 - 使用事件委托代替直接绑定
-  dropdown.onclick = function(e) {
+  // 选择预置组件 - 使用事件委托
+  dropdown.addEventListener("click", function(e) {
     const opt = e.target.closest('.select-option')
     if (!opt) return
     
-    console.log("[v0] Dropdown option clicked:", opt.dataset.presetId)
     const presetId = opt.dataset.presetId
     const preset = presetComponents.find(c => c.id === presetId)
-    console.log("[v0] Found preset:", preset)
     
     if (preset) {
       elements.componentTypeSelect.value = preset.name
       elements.componentNameInput.value = preset.description || preset.name
       // 使用componentDefaultParams获取默认参数
       const defaultParams = componentDefaultParams[preset.type] || {}
-      console.log("[v0] Default params:", defaultParams)
       elements.componentParamsInput.value = JSON.stringify(defaultParams, null, 2)
       // 更新参数摘要显示
       updateParamSummary(defaultParams)
       selectedPresetComponent = preset
       dropdown.classList.remove("show")
+      // 让input失去焦点
+      elements.componentTypeSelect.blur()
     }
-  }
+  })
 }
 
 function saveComponentForHistoryEdit() {
