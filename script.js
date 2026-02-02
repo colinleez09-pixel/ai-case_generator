@@ -732,7 +732,28 @@ function init() {
   })
 }
 
-// ============ 参数配置�������能 ============
+// ============ 参数配置功能 ============
+
+// 递归收集JSON树中的saveAs变量
+function collectSaveAsVariables(obj, componentName, variables) {
+  if (!obj || typeof obj !== 'object') return
+  
+  Object.keys(obj).forEach(key => {
+    const node = obj[key]
+    if (node && typeof node === 'object') {
+      if (node.type && node.saveAs) {
+        // 这是一个叶子节点，有saveAs属性
+        variables.push({
+          name: node.saveAs,
+          description: `${componentName} 响应字段 ${key}`
+        })
+      } else if (!node.type) {
+        // 这是一个嵌套对象，递归处理
+        collectSaveAsVariables(node, componentName, variables)
+      }
+    }
+  })
+}
 
 // 收集当前用例中所有已定义的变量
 function collectAllVariables() {
@@ -798,6 +819,20 @@ function collectAllVariables() {
             })
           }
         })
+      }
+      
+      // 收集API/REST响应验证中的saveAs变量
+      if ((component.type === 'api' || component.type === 'restful') && component.params?.rRsp) {
+        collectSaveAsVariables(component.params.rRsp, component.name || component.type, variables)
+      }
+    })
+  })
+  
+  // 收集预期结果中的变量（包括saveAs）
+  currentCase.expectedResults?.forEach(result => {
+    result.components?.forEach(component => {
+      if ((component.type === 'api' || component.type === 'restful') && component.params?.rRsp) {
+        collectSaveAsVariables(component.params.rRsp, component.name || component.type, variables)
       }
     })
   })
@@ -1030,9 +1065,9 @@ function generateParamField(field, value) {
         <div class="param-field-header">
           <label class="param-field-label ${requiredClass}">${field.label}${requiredMark}</label>
           <div class="json-tree-actions">
-            <label class="json-tree-toggle-label" title="切换显示：仅显示需修改的字段 / 显示全部字段">
-              <input type="checkbox" class="json-tree-show-modified" data-tree-name="${field.name}">
-              <span class="json-tree-toggle-text">仅显示待修改</span>
+            <label class="json-tree-toggle-label" title="切换显示全部字段或仅显示已填写的字段">
+              <input type="checkbox" class="json-tree-show-all-fields" data-tree-name="${field.name}" checked>
+              <span class="json-tree-toggle-text">显示全部字段</span>
             </label>
             <button type="button" class="json-tree-btn json-tree-expand-all" data-tree-name="${field.name}" title="展开全部">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1281,28 +1316,31 @@ function bindJsonTreeEvents() {
     })
   })
   
-  // 仅显示待修改字段 - 切换开关
-  elements.paramConfigContainer.querySelectorAll('.json-tree-show-modified').forEach(checkbox => {
+  // 显示全部字段 - 切换开关
+  elements.paramConfigContainer.querySelectorAll('.json-tree-show-all-fields').forEach(checkbox => {
     checkbox.addEventListener('change', () => {
       const treeName = checkbox.dataset.treeName
       const tree = elements.paramConfigContainer.querySelector(`[data-json-tree="${treeName}"]`)
-      const showOnlyModified = checkbox.checked
+      const showAllFields = checkbox.checked
       
       tree.querySelectorAll('.json-tree-leaf').forEach(leaf => {
         const isDefault = leaf.dataset.isDefault === 'true'
-        if (showOnlyModified) {
-          // 显示非默认值的字段，隐藏默认值字段
-          leaf.style.display = isDefault ? 'none' : 'block'
-        } else {
+        const input = leaf.querySelector('.json-tree-input')
+        const hasValue = input && input.value && input.value.trim() !== ''
+        
+        if (showAllFields) {
           // 显示所有字段
           leaf.style.display = 'block'
+        } else {
+          // 仅显示已填写的字段或有默认值的字段
+          leaf.style.display = (hasValue || isDefault) ? 'block' : 'none'
         }
       })
       
       // 更新切换文字
       const toggleText = checkbox.parentElement.querySelector('.json-tree-toggle-text')
       if (toggleText) {
-        toggleText.textContent = showOnlyModified ? '显示全部字段' : '仅显示待修改'
+        toggleText.textContent = showAllFields ? '显示全部字段' : '仅显示已填写'
       }
     })
   })
@@ -3301,7 +3339,7 @@ function openHistoryCaseEditModal() {
   historyCasesForEdit = JSON.parse(JSON.stringify(tempSelectedCases))
   historyCasesBackup = JSON.parse(JSON.stringify(historyCasesForEdit))
   
-  // 如果有已保存的模板和索引，使用它们；否则默认第一个
+  // 如果有已保存的模板和索引，使用它们；否���默认第一个
   if (savedCaseTemplate && savedTemplateIndex !== null && savedTemplateIndex < historyCasesForEdit.length) {
     templateCaseIndex = savedTemplateIndex
     caseTemplate = JSON.parse(JSON.stringify(savedCaseTemplate))
@@ -4019,7 +4057,7 @@ function renderPresetComponentsDropdown() {
     </div>
   `).join('')
   
-  // 清除之前的事件监听器，使用新的克隆元素替换旧元素
+  // 清除之前的事件监听器，使用新的克隆元素替���旧元素
   const oldTypeSelect = elements.componentTypeSelect
   const newTypeSelect = oldTypeSelect.cloneNode(true)
   oldTypeSelect.parentNode.replaceChild(newTypeSelect, oldTypeSelect)
