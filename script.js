@@ -732,24 +732,30 @@ function init() {
   })
 }
 
-// ============ 参数配置功能 ============
+// ============ 参数配置��能 ============
 
 // 递归收集JSON树中的saveAs变量
-function collectSaveAsVariables(obj, componentName, variables) {
+function collectSaveAsVariables(obj, componentName, variables, parentPath = '') {
   if (!obj || typeof obj !== 'object') return
   
   Object.keys(obj).forEach(key => {
     const node = obj[key]
+    const currentPath = parentPath ? `${parentPath}.${key}` : key
     if (node && typeof node === 'object') {
-      if (node.type && node.saveAs) {
-        // 这是一个叶子节点，有saveAs属性
+      if (node.type && node.saveAs && node.saveAs.trim()) {
+        // 这是一个叶子节点，有saveAs属性且值不为空
+        // 判断是SOAP还是REST组件
+        const isApiComponent = componentName.includes('SOAP') || componentName.includes('Soap') || componentName.includes('接口')
+        const isRestComponent = componentName.includes('REST') || componentName.includes('Rest')
+        const typePrefix = isApiComponent ? 'SOAP请求' : (isRestComponent ? 'REST请求' : '接口')
+        
         variables.push({
           name: node.saveAs,
-          description: `${componentName} 响应字段 ${key}`
+          description: `${typePrefix}响应字段 ${currentPath}`
         })
       } else if (!node.type) {
         // 这是一个嵌套对象，递归处理
-        collectSaveAsVariables(node, componentName, variables)
+        collectSaveAsVariables(node, componentName, variables, currentPath)
       }
     }
   })
@@ -794,6 +800,11 @@ function collectAllVariables() {
             })
           }
         })
+      }
+      
+      // 也收集预置条件中API/REST响应的saveAs变量
+      if ((component.type === 'api' || component.type === 'restful') && component.params?.rRsp) {
+        collectSaveAsVariables(component.params.rRsp, component.name || component.type, variables)
       }
     })
   })
@@ -1397,10 +1408,53 @@ function updateJsonTreeSaveAs(treeName, path, saveAs) {
   
   try {
     const currentData = JSON.parse(hiddenInput.value || '{}')
+    const fieldKey = path.split('.').pop() // 获取字段名
+    
+    // 获取旧的saveAs值
+    const oldSaveAs = getNestedProperty(currentData, path, 'saveAs')
+    
+    // 更新数据
     setNestedProperty(currentData, path, 'saveAs', saveAs || undefined)
     hiddenInput.value = JSON.stringify(currentData)
+    
+    // 同步更新全局变量列表，使其立即在其他输入框的autocomplete中可用
+    syncSaveAsVariable(oldSaveAs, saveAs, treeName, fieldKey)
   } catch (e) {
     console.error('[v0] 更新saveAs失败:', e)
+  }
+}
+
+function getNestedProperty(obj, path, property) {
+  const keys = path.split('.')
+  let current = obj
+  
+  for (let i = 0; i < keys.length; i++) {
+    if (!current || !current[keys[i]]) return undefined
+    current = current[keys[i]]
+  }
+  
+  return current ? current[property] : undefined
+}
+
+function syncSaveAsVariable(oldName, newName, treeName, fieldKey) {
+  // 移除旧变量（如果存在）
+  if (oldName) {
+    allDefinedVariables = allDefinedVariables.filter(v => v.name !== oldName)
+  }
+  
+  // 添加新变量（如果有值）
+  if (newName && newName.trim()) {
+    // 确定组件类型描述
+    const componentTypeDesc = treeName === 'rRsp' ? 'SOAP/REST请求响应' : '组件响应'
+    
+    // 检查是否已存在
+    const exists = allDefinedVariables.find(v => v.name === newName)
+    if (!exists) {
+      allDefinedVariables.push({
+        name: newName,
+        description: `${componentTypeDesc}字段 ${fieldKey}`
+      })
+    }
   }
 }
 
