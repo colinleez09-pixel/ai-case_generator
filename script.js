@@ -732,7 +732,7 @@ function init() {
   })
 }
 
-// ============ 参数配置���能 ============
+// ============ 参数配置����能 ============
 
 // 递归收集JSON树中的saveAs变量
 function collectSaveAsVariables(obj, componentName, variables, parentPath = '') {
@@ -1348,16 +1348,6 @@ function bindJsonTreeEvents() {
       tree.querySelectorAll('.json-tree-branch').forEach(node => {
         node.classList.remove('expanded')
       })
-    })
-  })
-  
-  // 显示全部字段 - 切换开关 (已移至全局切换 bindGlobalShowAllFieldsToggle)
-      
-      // 更新切换文字
-      const toggleText = checkbox.parentElement.querySelector('.json-tree-toggle-text')
-      if (toggleText) {
-        toggleText.textContent = showAllFields ? '显示全部字段' : '仅显示已填写'
-      }
     })
   })
   
