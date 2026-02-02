@@ -732,7 +732,7 @@ function init() {
   })
 }
 
-// ============ 参数配置�����能 ============
+// ============ 参数配置������能 ============
 
 // 收集当前用例中所有已定义的变量
 function collectAllVariables() {
@@ -910,6 +910,9 @@ function generateParamForm(componentType, params) {
   
   // 绑定autocomplete事件
   bindAutocompleteEvents()
+  
+  // 绑定JSON树事件
+  bindJsonTreeEvents()
 }
 
 
@@ -997,6 +1000,47 @@ function generateParamField(field, value) {
         <span class="param-field-hint">变量名自动添加 "My_" 前缀，多个变量用分号分隔</span>
       </div>
     `
+  } else if (field.type === 'json-tree') {
+    // JSON树形结构编辑器
+    const jsonData = value || field.defaultValue || {}
+    const treeHtml = generateJsonTree(jsonData, field.name, 0)
+    
+    return `
+      <div class="param-field param-field-json-tree">
+        <div class="param-field-header">
+          <label class="param-field-label ${requiredClass}">${field.label}${requiredMark}</label>
+          <div class="json-tree-actions">
+            <button type="button" class="json-tree-btn json-tree-expand-all" data-tree-name="${field.name}" title="展开全部">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <polyline points="9 21 3 21 3 15"></polyline>
+                <line x1="21" y1="3" x2="14" y2="10"></line>
+                <line x1="3" y1="21" x2="10" y2="14"></line>
+              </svg>
+            </button>
+            <button type="button" class="json-tree-btn json-tree-collapse-all" data-tree-name="${field.name}" title="折叠全部">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="4 14 10 14 10 20"></polyline>
+                <polyline points="20 10 14 10 14 4"></polyline>
+                <line x1="14" y1="10" x2="21" y2="3"></line>
+                <line x1="3" y1="21" x2="10" y2="14"></line>
+              </svg>
+            </button>
+            <button type="button" class="json-tree-btn json-tree-add-node" data-tree-name="${field.name}" title="添加字段">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="json-tree-container" data-json-tree="${field.name}">
+          ${treeHtml}
+        </div>
+        <input type="hidden" data-name="${field.name}" data-json-tree-value value='${JSON.stringify(jsonData)}'>
+        ${field.hint ? `<span class="param-field-hint">${field.hint}</span>` : ''}
+      </div>
+    `
   }
   
   return ''
@@ -1010,6 +1054,213 @@ function parseVariables(varsString) {
     const [name, value] = pair.split('=').map(s => s.trim())
     return { name: name || '', value: value || '', description: '' }
   })
+}
+
+// ============ JSON树形结构编辑器函数 ============
+
+function generateJsonTree(data, treeName, level, parentPath = '') {
+  if (!data || typeof data !== 'object') {
+    return '<div class="json-tree-empty">无数据</div>'
+  }
+  
+  let html = ''
+  const keys = Object.keys(data)
+  
+  keys.forEach(key => {
+    const node = data[key]
+    const currentPath = parentPath ? `${parentPath}.${key}` : key
+    const isExpandable = node && typeof node === 'object' && !node.type
+    const isLeaf = node && node.type
+    
+    if (isExpandable) {
+      // 可展开的节点（嵌套对象）
+      html += `
+        <div class="json-tree-node json-tree-branch" data-path="${currentPath}" data-level="${level}">
+          <div class="json-tree-node-header" data-toggle-node>
+            <span class="json-tree-toggle">
+              <svg class="json-tree-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </span>
+            <span class="json-tree-key">${key}</span>
+            <span class="json-tree-type-badge">object</span>
+            <span class="json-tree-count">${Object.keys(node).length} 项</span>
+          </div>
+          <div class="json-tree-children" style="display: block;">
+            ${generateJsonTree(node, treeName, level + 1, currentPath)}
+          </div>
+        </div>
+      `
+    } else if (isLeaf) {
+      // 叶子节点（带类型的值）
+      const inputHtml = generateJsonTreeInput(node, currentPath, treeName)
+      html += `
+        <div class="json-tree-node json-tree-leaf" data-path="${currentPath}" data-level="${level}">
+          <div class="json-tree-leaf-content">
+            <span class="json-tree-key">${key}</span>
+            <span class="json-tree-type-badge json-tree-type-${node.type}">${node.type}</span>
+            ${inputHtml}
+            ${node.validation ? `<span class="json-tree-validation" title="验证规则: ${node.validation}">${getValidationIcon(node.validation)}</span>` : ''}
+            ${node.saveAs ? `<span class="json-tree-save-as" title="保存为变量: ${node.saveAs}">→ ${node.saveAs}</span>` : ''}
+          </div>
+        </div>
+      `
+    }
+  })
+  
+  return html || '<div class="json-tree-empty">无字段</div>'
+}
+
+function generateJsonTreeInput(node, path, treeName) {
+  const value = node.value || ''
+  const nodeType = node.type || 'string'
+  
+  switch (nodeType) {
+    case 'string':
+      return `<input type="text" class="json-tree-input json-tree-input-string" data-path="${path}" data-tree="${treeName}" value="${escapeHtml(value)}" placeholder="字符串值">`
+    case 'number':
+      return `<input type="number" class="json-tree-input json-tree-input-number" data-path="${path}" data-tree="${treeName}" value="${value}" placeholder="数字值">`
+    case 'boolean':
+      return `
+        <select class="json-tree-input json-tree-input-boolean" data-path="${path}" data-tree="${treeName}">
+          <option value="true" ${value === true || value === 'true' ? 'selected' : ''}>true</option>
+          <option value="false" ${value === false || value === 'false' ? 'selected' : ''}>false</option>
+        </select>
+      `
+    case 'date':
+      return `<input type="text" class="json-tree-input json-tree-input-date" data-path="${path}" data-tree="${treeName}" value="${escapeHtml(value)}" placeholder="日期值 或 \${G.today()}">`
+    default:
+      return `<input type="text" class="json-tree-input" data-path="${path}" data-tree="${treeName}" value="${escapeHtml(value)}">`
+  }
+}
+
+function escapeHtml(str) {
+  if (typeof str !== 'string') return str
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+function getValidationIcon(validation) {
+  const icons = {
+    'equals': '=',
+    'contains': '∋',
+    'notEmpty': '≠∅',
+    'regex': '.*',
+    'gt': '>',
+    'lt': '<',
+    'gte': '≥',
+    'lte': '≤'
+  }
+  return `<span class="validation-icon">${icons[validation] || '✓'}</span>`
+}
+
+function bindJsonTreeEvents() {
+  const trees = elements.paramConfigContainer.querySelectorAll('[data-json-tree]')
+  
+  trees.forEach(tree => {
+    const treeName = tree.dataset.jsonTree
+    
+    // 展开/折叠节点
+    tree.querySelectorAll('[data-toggle-node]').forEach(header => {
+      header.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const node = header.closest('.json-tree-branch')
+        const children = node.querySelector('.json-tree-children')
+        const arrow = header.querySelector('.json-tree-arrow')
+        
+        if (children.style.display === 'none') {
+          children.style.display = 'block'
+          arrow.style.transform = 'rotate(90deg)'
+          node.classList.add('expanded')
+        } else {
+          children.style.display = 'none'
+          arrow.style.transform = 'rotate(0deg)'
+          node.classList.remove('expanded')
+        }
+      })
+    })
+    
+    // 输入值变化时更新隐藏字段
+    tree.querySelectorAll('.json-tree-input').forEach(input => {
+      input.addEventListener('change', () => {
+        updateJsonTreeValue(treeName)
+      })
+      input.addEventListener('input', () => {
+        updateJsonTreeValue(treeName)
+      })
+    })
+  })
+  
+  // 展开全部按钮
+  elements.paramConfigContainer.querySelectorAll('.json-tree-expand-all').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const treeName = btn.dataset.treeName
+      const tree = elements.paramConfigContainer.querySelector(`[data-json-tree="${treeName}"]`)
+      tree.querySelectorAll('.json-tree-children').forEach(child => {
+        child.style.display = 'block'
+      })
+      tree.querySelectorAll('.json-tree-arrow').forEach(arrow => {
+        arrow.style.transform = 'rotate(90deg)'
+      })
+      tree.querySelectorAll('.json-tree-branch').forEach(node => {
+        node.classList.add('expanded')
+      })
+    })
+  })
+  
+  // 折叠全部按钮
+  elements.paramConfigContainer.querySelectorAll('.json-tree-collapse-all').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const treeName = btn.dataset.treeName
+      const tree = elements.paramConfigContainer.querySelector(`[data-json-tree="${treeName}"]`)
+      tree.querySelectorAll('.json-tree-children').forEach(child => {
+        child.style.display = 'none'
+      })
+      tree.querySelectorAll('.json-tree-arrow').forEach(arrow => {
+        arrow.style.transform = 'rotate(0deg)'
+      })
+      tree.querySelectorAll('.json-tree-branch').forEach(node => {
+        node.classList.remove('expanded')
+      })
+    })
+  })
+}
+
+function updateJsonTreeValue(treeName) {
+  const tree = elements.paramConfigContainer.querySelector(`[data-json-tree="${treeName}"]`)
+  const hiddenInput = elements.paramConfigContainer.querySelector(`[data-name="${treeName}"][data-json-tree-value]`)
+  
+  if (!tree || !hiddenInput) return
+  
+  try {
+    const currentData = JSON.parse(hiddenInput.value || '{}')
+    
+    tree.querySelectorAll('.json-tree-input').forEach(input => {
+      const path = input.dataset.path
+      const value = input.value
+      setNestedValue(currentData, path, value)
+    })
+    
+    hiddenInput.value = JSON.stringify(currentData)
+  } catch (e) {
+    console.error('[v0] 更新JSON树值失败:', e)
+  }
+}
+
+function setNestedValue(obj, path, value) {
+  const keys = path.split('.')
+  let current = obj
+  
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (!current[keys[i]]) current[keys[i]] = {}
+    current = current[keys[i]]
+  }
+  
+  const lastKey = keys[keys.length - 1]
+  if (current[lastKey] && typeof current[lastKey] === 'object' && current[lastKey].type) {
+    current[lastKey].value = value
+  } else {
+    current[lastKey] = value
+  }
 }
 
 function bindComboBoxEvents() {
@@ -1240,6 +1491,16 @@ function collectParamFormData() {
     formData.vars = variables.join(';')
     formData.varDescriptions = variableDescriptions.join(';')
   }
+  
+  // 收集JSON树数据
+  elements.paramConfigContainer.querySelectorAll('[data-json-tree-value]').forEach(input => {
+    const name = input.dataset.name
+    try {
+      formData[name] = JSON.parse(input.value || '{}')
+    } catch (e) {
+      formData[name] = {}
+    }
+  })
   
   return formData
 }
@@ -2906,7 +3167,7 @@ function renderHistoryEditCaseList() {
     </div>
   `).join("")
   
-  // 绑定点击事���
+  // 绑定点���事���
   elements.historyEditCaseList.querySelectorAll(".case-item-with-actions").forEach(item => {
     item.addEventListener("click", () => {
       currentEditCaseIndex = parseInt(item.dataset.index)
@@ -3291,7 +3552,7 @@ function bindEditableSectionEvents(container, sectionType) {
   container.querySelectorAll(".delete-step-btn").forEach(btn => {
     btn.addEventListener("click", async (e) => {
       e.stopPropagation()
-      const confirmed = await showConfirmDialog("确定要删除此步骤吗？", "删除��认")
+      const confirmed = await showConfirmDialog("确定要删除此步骤吗？", "删����认")
       if (confirmed) {
         const stepIndex = parseInt(btn.dataset.stepIndex)
         caseTemplate[sectionType].splice(stepIndex, 1)
@@ -3543,7 +3804,7 @@ function openComponentEditForHistoryEdit(stepIndex, compIndex, section) {
     elements.componentTypeSelect.value = ""
     elements.componentNameInput.value = ""
     elements.componentParamsInput.value = "{}"
-    // 清空参数���要显示
+    // 清空���数���要显示
     updateParamSummary({})
   }
 
