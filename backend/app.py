@@ -66,10 +66,37 @@ COMPONENT_DEFAULT_PARAMS = {
         "checkAmount": ""
     },
     "api": {
-        "rTpl": "",
-        "url": "",
-        "rReq": "",
-        "rRsp": ""
+        "rTpl": "@\\soap\\Request.xml",
+        "url": "${Env.BMPAPP101.SoapUrl}",
+        "tenantId": "${My_tenantId}",
+        "rReq": {
+            "header": {
+                "version": {"type": "string", "value": "1.0"},
+                "bizCode": {"type": "string", "value": "CREATE_SUBSCRIBER"},
+                "transId": {"type": "string", "value": "${G.uuid()}"},
+                "timestamp": {"type": "string", "value": "${G.now()}"}
+            },
+            "body": {
+                "subscriberInfo": {
+                    "msisdn": {"type": "string", "value": "${My_SubIdentity}"},
+                    "imsi": {"type": "string", "value": "${My_IMSI}"},
+                    "status": {"type": "number", "value": 1},
+                    "createDate": {"type": "date", "value": "${G.today()}"}
+                },
+                "offeringInfo": {
+                    "primaryOfferingId": {"type": "string", "value": "${My_PrimaryOfferingID}"},
+                    "effectiveDate": {"type": "date", "value": "${G.today()}"}
+                }
+            }
+        },
+        "rRsp": {
+            "resultCode": {"type": "string", "value": "0", "validation": "equals"},
+            "resultMsg": {"type": "string", "value": "Success", "validation": "contains"},
+            "data": {
+                "subscriberId": {"type": "string", "value": "", "validation": "notEmpty", "saveAs": "My_SubscriberId"},
+                "accountId": {"type": "string", "value": "", "validation": "notEmpty", "saveAs": "My_AccountId"}
+            }
+        }
     },
     "comment": {
         "content": ""
@@ -398,8 +425,35 @@ def get_param_schemas():
         'api': [
             {'name': 'rTpl', 'label': '请求模板', 'type': 'input', 'required': True, 'placeholder': '@\\soap\\Request.xml'},
             {'name': 'url', 'label': '接口URL', 'type': 'input', 'required': True, 'placeholder': '${Env.BMPAPP101.SoapUrl}'},
-            {'name': 'rReq', 'label': '请求参数', 'type': 'textarea', 'required': False},
-            {'name': 'rRsp', 'label': '响应验证', 'type': 'textarea', 'required': False}
+            {'name': 'tenantId', 'label': '租户ID', 'type': 'input', 'required': False, 'placeholder': '${My_tenantId}'},
+            {'name': 'rReq', 'label': '请求参数', 'type': 'json-tree', 'required': False, 'defaultValue': {
+                'header': {
+                    'version': {'type': 'string', 'value': '1.0'},
+                    'bizCode': {'type': 'string', 'value': 'CREATE_SUBSCRIBER'},
+                    'transId': {'type': 'string', 'value': '${G.uuid()}'},
+                    'timestamp': {'type': 'string', 'value': '${G.now()}'}
+                },
+                'body': {
+                    'subscriberInfo': {
+                        'msisdn': {'type': 'string', 'value': '${My_SubIdentity}'},
+                        'imsi': {'type': 'string', 'value': '${My_IMSI}'},
+                        'status': {'type': 'number', 'value': 1},
+                        'createDate': {'type': 'date', 'value': '${G.today()}'}
+                    },
+                    'offeringInfo': {
+                        'primaryOfferingId': {'type': 'string', 'value': '${My_PrimaryOfferingID}'},
+                        'effectiveDate': {'type': 'date', 'value': '${G.today()}'}
+                    }
+                }
+            }},
+            {'name': 'rRsp', 'label': '响应验证', 'type': 'json-tree', 'required': False, 'defaultValue': {
+                'resultCode': {'type': 'string', 'value': '0', 'validation': 'equals'},
+                'resultMsg': {'type': 'string', 'value': 'Success', 'validation': 'contains'},
+                'data': {
+                    'subscriberId': {'type': 'string', 'value': '', 'validation': 'notEmpty', 'saveAs': 'My_SubscriberId'},
+                    'accountId': {'type': 'string', 'value': '', 'validation': 'notEmpty', 'saveAs': 'My_AccountId'}
+                }
+            }}
         ],
         'task': [
             {'name': 'planType', 'label': '计划类型', 'type': 'combo', 'required': True, 'options': ['triggeringTaskPlan', 'scheduledTaskPlan']},

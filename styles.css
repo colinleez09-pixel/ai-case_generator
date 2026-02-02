@@ -3007,3 +3007,240 @@ body {
 .readonly-mode .copy-comp-btn {
   display: inline-flex !important;
 }
+
+/* ============ JSON树形结构编辑器样式 ============ */
+
+.param-field-json-tree {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fafbfc;
+}
+
+.param-field-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.json-tree-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.json-tree-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  color: #6b7280;
+  transition: all 0.2s;
+}
+
+.json-tree-btn:hover {
+  background: #f3f4f6;
+  color: #374151;
+  border-color: #9ca3af;
+}
+
+.json-tree-container {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 12px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.json-tree-node {
+  margin-bottom: 4px;
+}
+
+.json-tree-branch > .json-tree-node-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.json-tree-branch > .json-tree-node-header:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.json-tree-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}
+
+.json-tree-arrow {
+  transition: transform 0.2s;
+  color: #64748b;
+}
+
+.json-tree-branch.expanded > .json-tree-node-header .json-tree-arrow {
+  transform: rotate(90deg);
+}
+
+.json-tree-key {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 13px;
+}
+
+.json-tree-type-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #e2e8f0;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.json-tree-type-string {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.json-tree-type-number {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.json-tree-type-boolean {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.json-tree-type-date {
+  background: #f3e8ff;
+  color: #9333ea;
+}
+
+.json-tree-count {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-left: auto;
+}
+
+.json-tree-children {
+  margin-left: 24px;
+  padding-left: 12px;
+  border-left: 2px solid #e5e7eb;
+  margin-top: 4px;
+}
+
+.json-tree-leaf {
+  padding: 6px 0;
+}
+
+.json-tree-leaf-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.json-tree-leaf .json-tree-key {
+  min-width: 100px;
+  font-weight: 500;
+  color: #475569;
+  font-size: 13px;
+}
+
+.json-tree-input {
+  flex: 1;
+  min-width: 150px;
+  max-width: 300px;
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+  color: #1f2937;
+  transition: all 0.2s;
+}
+
+.json-tree-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.json-tree-input-number {
+  max-width: 120px;
+}
+
+.json-tree-input-boolean {
+  max-width: 100px;
+}
+
+.json-tree-validation {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  color: #dc2626;
+  font-size: 11px;
+  cursor: help;
+}
+
+.json-tree-save-as {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.json-tree-empty {
+  padding: 20px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.validation-icon {
+  font-weight: 700;
+}
+
+/* JSON树响应式 */
+@media (max-width: 768px) {
+  .json-tree-leaf-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .json-tree-leaf .json-tree-key {
+    min-width: auto;
+  }
+  
+  .json-tree-input {
+    width: 100%;
+    max-width: none;
+  }
+}
