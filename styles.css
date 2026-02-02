@@ -3265,13 +3265,88 @@ body {
   white-space: nowrap;
 }
 
-/* 默认值字段样式 */
+/* 默认值字段样式 - 使用浅灰背景区分，保持文字清晰可读 */
 .json-tree-leaf.is-default-value {
-  opacity: 0.7;
+  background: #f8fafc;
+  border-radius: 4px;
+  padding: 4px 8px;
+  margin: 2px 0;
 }
 
 .json-tree-leaf.is-default-value .json-tree-key {
-  color: #9ca3af;
+  color: #64748b;
+}
+
+.json-tree-leaf.is-default-value .json-tree-input {
+  background: #fff;
+  border-color: #e2e8f0;
+}
+
+/* 全局显示切换样式 */
+.param-global-toggle {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 0 16px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 16px;
+}
+
+.json-tree-toggle-global {
+  font-weight: 500;
+}
+
+/* JSON树输入框包装器和自动完成 */
+.json-tree-input-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 150px;
+  max-width: 300px;
+}
+
+.json-tree-input-wrapper .json-tree-input {
+  width: 100%;
+}
+
+.json-tree-autocomplete-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+
+.json-tree-autocomplete-dropdown .param-autocomplete-option {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.json-tree-autocomplete-dropdown .param-autocomplete-option:last-child {
+  border-bottom: none;
+}
+
+.json-tree-autocomplete-dropdown .param-autocomplete-option:hover {
+  background: #f3f4f6;
+}
+
+.json-tree-autocomplete-dropdown .param-autocomplete-var-name {
+  font-weight: 500;
+  color: #1f2937;
+  font-size: 13px;
+}
+
+.json-tree-autocomplete-dropdown .param-autocomplete-var-desc {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 2px;
 }
 
 /* 验证规则选择器 */

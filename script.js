@@ -732,7 +732,7 @@ function init() {
   })
 }
 
-// ============ 参数配置��能 ============
+// ============ 参数配置���能 ============
 
 // 递归收集JSON树中的saveAs变量
 function collectSaveAsVariables(obj, componentName, variables, parentPath = '') {
@@ -941,6 +941,19 @@ function generateParamForm(componentType, params) {
   return
   }
   
+  // 检查是否有json-tree类型字段，如果有则添加全局"显示全部字段"开关
+  const hasJsonTree = paramSchema.some(f => f.type === 'json-tree')
+  if (hasJsonTree) {
+    container.insertAdjacentHTML('beforeend', `
+      <div class="param-global-toggle">
+        <label class="json-tree-toggle-label json-tree-toggle-global" title="切换显示全部字段或仅显示已填写的字段">
+          <input type="checkbox" class="json-tree-show-all-fields-global" checked>
+          <span class="json-tree-toggle-text">显示全部字段</span>
+        </label>
+      </div>
+    `)
+  }
+  
   paramSchema.forEach(field => {
   const fieldHtml = generateParamField(field, params[field.name] || '')
   container.insertAdjacentHTML('beforeend', fieldHtml)
@@ -959,6 +972,9 @@ function generateParamForm(componentType, params) {
   
   // 绑定JSON树事件
   bindJsonTreeEvents()
+  
+  // 绑定全局显示切换
+  bindGlobalShowAllFieldsToggle()
 }
 
 
@@ -1071,40 +1087,36 @@ function generateParamField(field, value) {
     const isResponse = field.isResponse || false
     const treeHtml = generateJsonTree(jsonData, field.name, 0, '', isResponse)
     
-    return `
-      <div class="param-field param-field-json-tree" data-is-response="${isResponse}">
-        <div class="param-field-header">
-          <label class="param-field-label ${requiredClass}">${field.label}${requiredMark}</label>
-          <div class="json-tree-actions">
-            <label class="json-tree-toggle-label" title="切换显示全部字段或仅显示已填写的字段">
-              <input type="checkbox" class="json-tree-show-all-fields" data-tree-name="${field.name}" checked>
-              <span class="json-tree-toggle-text">显示全部字段</span>
-            </label>
-            <button type="button" class="json-tree-btn json-tree-expand-all" data-tree-name="${field.name}" title="展开全部">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="15 3 21 3 21 9"></polyline>
-                <polyline points="9 21 3 21 3 15"></polyline>
-                <line x1="21" y1="3" x2="14" y2="10"></line>
-                <line x1="3" y1="21" x2="10" y2="14"></line>
-              </svg>
-            </button>
-            <button type="button" class="json-tree-btn json-tree-collapse-all" data-tree-name="${field.name}" title="折叠全部">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="4 14 10 14 10 20"></polyline>
-                <polyline points="20 10 14 10 14 4"></polyline>
-                <line x1="14" y1="10" x2="21" y2="3"></line>
-                <line x1="3" y1="21" x2="10" y2="14"></line>
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div class="json-tree-container" data-json-tree="${field.name}" data-is-response="${isResponse}">
-          ${treeHtml}
-        </div>
-        <input type="hidden" data-name="${field.name}" data-json-tree-value value='${JSON.stringify(jsonData)}'>
-        ${field.hint ? `<span class="param-field-hint">${field.hint}</span>` : ''}
-      </div>
-    `
+  return `
+  <div class="param-field param-field-json-tree" data-is-response="${isResponse}" data-field-name="${field.name}">
+  <div class="param-field-header">
+  <label class="param-field-label ${requiredClass}">${field.label}${requiredMark}</label>
+  <div class="json-tree-actions">
+  <button type="button" class="json-tree-btn json-tree-expand-all" data-tree-name="${field.name}" title="展开全部">
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <polyline points="15 3 21 3 21 9"></polyline>
+  <polyline points="9 21 3 21 3 15"></polyline>
+  <line x1="21" y1="3" x2="14" y2="10"></line>
+  <line x1="3" y1="21" x2="10" y2="14"></line>
+  </svg>
+  </button>
+  <button type="button" class="json-tree-btn json-tree-collapse-all" data-tree-name="${field.name}" title="折叠全部">
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <polyline points="4 14 10 14 10 20"></polyline>
+  <polyline points="20 10 14 10 14 4"></polyline>
+  <line x1="14" y1="10" x2="21" y2="3"></line>
+  <line x1="3" y1="21" x2="10" y2="14"></line>
+  </svg>
+  </button>
+  </div>
+  </div>
+  <div class="json-tree-container" data-json-tree="${field.name}" data-is-response="${isResponse}">
+  ${treeHtml}
+  </div>
+  <input type="hidden" data-name="${field.name}" data-json-tree-value value='${JSON.stringify(jsonData)}'>
+  ${field.hint ? `<span class="param-field-hint">${field.hint}</span>` : ''}
+  </div>
+  `
   }
   
   return ''
@@ -1219,21 +1231,33 @@ function generateJsonTreeInput(node, path, treeName) {
   const nodeType = node.type || 'string'
   
   switch (nodeType) {
-    case 'string':
-      return `<input type="text" class="json-tree-input json-tree-input-string" data-path="${path}" data-tree="${treeName}" value="${escapeHtml(value)}" placeholder="字符串值">`
-    case 'number':
-      return `<input type="number" class="json-tree-input json-tree-input-number" data-path="${path}" data-tree="${treeName}" value="${value}" placeholder="数字值">`
-    case 'boolean':
-      return `
-        <select class="json-tree-input json-tree-input-boolean" data-path="${path}" data-tree="${treeName}">
-          <option value="true" ${value === true || value === 'true' ? 'selected' : ''}>true</option>
-          <option value="false" ${value === false || value === 'false' ? 'selected' : ''}>false</option>
-        </select>
-      `
-    case 'date':
-      return `<input type="text" class="json-tree-input json-tree-input-date" data-path="${path}" data-tree="${treeName}" value="${escapeHtml(value)}" placeholder="日期值 或 \${G.today()}">`
-    default:
-      return `<input type="text" class="json-tree-input" data-path="${path}" data-tree="${treeName}" value="${escapeHtml(value)}">`
+  case 'string':
+  return `
+  <div class="json-tree-input-wrapper">
+    <input type="text" class="json-tree-input json-tree-input-string" data-path="${path}" data-tree="${treeName}" value="${escapeHtml(value)}" placeholder="字符串值" data-autocomplete>
+    <div class="json-tree-autocomplete-dropdown"></div>
+  </div>`
+  case 'number':
+  return `<input type="number" class="json-tree-input json-tree-input-number" data-path="${path}" data-tree="${treeName}" value="${value}" placeholder="数字值">`
+  case 'boolean':
+  return `
+  <select class="json-tree-input json-tree-input-boolean" data-path="${path}" data-tree="${treeName}">
+  <option value="true" ${value === true || value === 'true' ? 'selected' : ''}>true</option>
+  <option value="false" ${value === false || value === 'false' ? 'selected' : ''}>false</option>
+  </select>
+  `
+  case 'date':
+  return `
+  <div class="json-tree-input-wrapper">
+    <input type="text" class="json-tree-input json-tree-input-date" data-path="${path}" data-tree="${treeName}" value="${escapeHtml(value)}" placeholder="日期值 或 \${G.today()}" data-autocomplete>
+    <div class="json-tree-autocomplete-dropdown"></div>
+  </div>`
+  default:
+  return `
+  <div class="json-tree-input-wrapper">
+    <input type="text" class="json-tree-input" data-path="${path}" data-tree="${treeName}" value="${escapeHtml(value)}" data-autocomplete>
+    <div class="json-tree-autocomplete-dropdown"></div>
+  </div>`
   }
 }
 
@@ -1327,26 +1351,7 @@ function bindJsonTreeEvents() {
     })
   })
   
-  // 显示全部字段 - 切换开关
-  elements.paramConfigContainer.querySelectorAll('.json-tree-show-all-fields').forEach(checkbox => {
-    checkbox.addEventListener('change', () => {
-      const treeName = checkbox.dataset.treeName
-      const tree = elements.paramConfigContainer.querySelector(`[data-json-tree="${treeName}"]`)
-      const showAllFields = checkbox.checked
-      
-      tree.querySelectorAll('.json-tree-leaf').forEach(leaf => {
-        const isDefault = leaf.dataset.isDefault === 'true'
-        const input = leaf.querySelector('.json-tree-input')
-        const hasValue = input && input.value && input.value.trim() !== ''
-        
-        if (showAllFields) {
-          // 显示所有字段
-          leaf.style.display = 'block'
-        } else {
-          // 仅显示已填写的字段或有默认值的字段
-          leaf.style.display = (hasValue || isDefault) ? 'block' : 'none'
-        }
-      })
+  // 显示全部字段 - 切换开关 (已移至全局切换 bindGlobalShowAllFieldsToggle)
       
       // 更新切换文字
       const toggleText = checkbox.parentElement.querySelector('.json-tree-toggle-text')
@@ -1477,26 +1482,60 @@ function setNestedProperty(obj, path, property, value) {
   }
 }
 
-function bindTemplateSelectEvents() {
-  elements.paramConfigContainer.querySelectorAll('.param-template-select').forEach(select => {
-    const name = select.dataset.name
-    const customInput = elements.paramConfigContainer.querySelector(`[data-name="${name}-custom"]`)
+function bindGlobalShowAllFieldsToggle() {
+  const globalToggle = elements.paramConfigContainer.querySelector('.json-tree-show-all-fields-global')
+  if (!globalToggle) return
+  
+  globalToggle.addEventListener('change', () => {
+    const showAllFields = globalToggle.checked
     
-    select.addEventListener('change', () => {
-      if (select.value && customInput) {
-        customInput.value = ''
-      }
-    })
-    
-    if (customInput) {
-      customInput.addEventListener('input', () => {
-        if (customInput.value) {
-          select.value = ''
+    // 遍历所有json树
+    elements.paramConfigContainer.querySelectorAll('[data-json-tree]').forEach(tree => {
+      tree.querySelectorAll('.json-tree-leaf').forEach(leaf => {
+        const isDefault = leaf.dataset.isDefault === 'true'
+        const input = leaf.querySelector('.json-tree-input')
+        const hasValue = input && input.value && input.value.trim() !== ''
+        
+        if (showAllFields) {
+          // 显示全部字段
+          leaf.style.display = 'block'
+        } else {
+          // 仅显示有值的字段或非默认字段
+          leaf.style.display = (hasValue || !isDefault) ? 'block' : 'none'
         }
       })
+    })
+    
+    // 更新切换文字
+    const toggleText = globalToggle.parentElement.querySelector('.json-tree-toggle-text')
+    if (toggleText) {
+      toggleText.textContent = showAllFields ? '显示全部字段' : '仅显示已填写'
     }
   })
 }
+
+function bindTemplateSelectEvents() {
+  elements.paramConfigContainer.querySelectorAll('.param-template-select').forEach(select => {
+  const name = select.dataset.name
+  const customInput = elements.paramConfigContainer.querySelector(`[data-name="${name}-custom"]`)
+  
+  select.addEventListener('change', () => {
+  if (select.value && customInput) {
+  customInput.value = ''
+  }
+  // 当选择模板时，可以在这里触发参数更新
+  // 目前保持简单实现，后续可扩展为根据模板动态加载参数
+  })
+  
+  if (customInput) {
+  customInput.addEventListener('input', () => {
+  if (customInput.value) {
+  select.value = ''
+  }
+  })
+  }
+  })
+  }
 
 function updateJsonTreeValue(treeName) {
   const tree = elements.paramConfigContainer.querySelector(`[data-json-tree="${treeName}"]`)
@@ -1588,8 +1627,9 @@ function bindAutocompleteEvents() {
   const autocompleteInputs = elements.paramConfigContainer.querySelectorAll('[data-autocomplete]')
   
   autocompleteInputs.forEach(input => {
-    const wrapper = input.closest('.param-autocomplete-wrapper')
-    const dropdown = wrapper?.querySelector('.param-autocomplete-dropdown')
+  // 支持param-autocomplete-wrapper和json-tree-input-wrapper两种容器
+  const wrapper = input.closest('.param-autocomplete-wrapper') || input.closest('.json-tree-input-wrapper')
+  const dropdown = wrapper?.querySelector('.param-autocomplete-dropdown') || wrapper?.querySelector('.json-tree-autocomplete-dropdown')
     
     if (!dropdown) return
     
@@ -2341,7 +2381,7 @@ function renderCaseDetail() {
 function renderSection(items, container, sectionType) {
   if (!items || items.length === 0) {
     const hintText = sectionType === "preconditions" ? "预置条件" : sectionType === "steps" ? "测试步骤" : "预期结果"
-    container.innerHTML = `<p class="empty-hint">暂无${hintText}，点击上方按钮添加</p>`
+    container.innerHTML = `<p class="empty-hint">暂��${hintText}，点击上方按钮添加</p>`
     return
   }
 
