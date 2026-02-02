@@ -102,11 +102,29 @@ COMPONENT_DEFAULT_PARAMS = {
         "content": ""
     },
     "restful": {
-        "rTpl": "",
-        "url": "",
-        "rReq": "",
-        "rRsp": "",
-        "rVars": ""
+        "rTpl": "@\\rest\\GetUser.json",
+        "url": "${Env.RestApiUrl}/api/v1",
+        "method": "GET",
+        "rReq": {
+            "headers": {
+                "Content-Type": {"type": "string", "value": "application/json", "isDefault": True},
+                "Authorization": {"type": "string", "value": "Bearer ${My_Token}"}
+            },
+            "body": {
+                "userId": {"type": "string", "value": "${My_UserId}"},
+                "name": {"type": "string", "value": ""},
+                "email": {"type": "string", "value": ""},
+                "status": {"type": "number", "value": 1, "isDefault": True}
+            }
+        },
+        "rRsp": {
+            "code": {"type": "number", "value": 200, "validation": "equals", "isDefault": True},
+            "message": {"type": "string", "value": "success", "validation": "noCare", "isDefault": True},
+            "data": {
+                "id": {"type": "string", "value": "", "validation": "notEmpty", "saveAs": ""},
+                "createdAt": {"type": "date", "value": "", "validation": "noCare"}
+            }
+        }
     },
     "shell": {
         "url": "",
@@ -423,35 +441,44 @@ def get_param_schemas():
             {'name': 'timeout', 'label': '超时时间(秒)', 'type': 'input', 'required': False, 'placeholder': '30'}
         ],
         'api': [
-            {'name': 'rTpl', 'label': '请求模板', 'type': 'input', 'required': True, 'placeholder': '@\\soap\\Request.xml'},
+            {'name': 'rTpl', 'label': '请求模板', 'type': 'template-select', 'required': True, 'options': [
+                {'value': '@\\soap\\CreateSubscriber.xml', 'label': '创建用户'},
+                {'value': '@\\soap\\QuerySubscriber.xml', 'label': '查询用户'},
+                {'value': '@\\soap\\ModifySubscriber.xml', 'label': '修改用户'},
+                {'value': '@\\soap\\DeleteSubscriber.xml', 'label': '删除用户'},
+                {'value': '@\\soap\\CreateAccount.xml', 'label': '创建账户'},
+                {'value': '@\\soap\\Payment.xml', 'label': '缴费'},
+                {'value': '@\\soap\\Adjustment.xml', 'label': '调账'},
+                {'value': '@\\soap\\ChangeOffering.xml', 'label': '变更套餐'}
+            ]},
             {'name': 'url', 'label': '接口URL', 'type': 'input', 'required': True, 'placeholder': '${Env.BMPAPP101.SoapUrl}'},
             {'name': 'tenantId', 'label': '租户ID', 'type': 'input', 'required': False, 'placeholder': '${My_tenantId}'},
-            {'name': 'rReq', 'label': '请求参数', 'type': 'json-tree', 'required': False, 'defaultValue': {
+            {'name': 'rReq', 'label': '请求参数', 'type': 'json-tree', 'required': False, 'isRequest': True, 'defaultValue': {
                 'header': {
-                    'version': {'type': 'string', 'value': '1.0'},
-                    'bizCode': {'type': 'string', 'value': 'CREATE_SUBSCRIBER'},
-                    'transId': {'type': 'string', 'value': '${G.uuid()}'},
-                    'timestamp': {'type': 'string', 'value': '${G.now()}'}
+                    'version': {'type': 'string', 'value': '1.0', 'isDefault': True},
+                    'bizCode': {'type': 'string', 'value': 'CREATE_SUBSCRIBER', 'isDefault': True},
+                    'transId': {'type': 'string', 'value': '${G.uuid()}', 'isDefault': True},
+                    'timestamp': {'type': 'string', 'value': '${G.now()}', 'isDefault': True}
                 },
                 'body': {
                     'subscriberInfo': {
                         'msisdn': {'type': 'string', 'value': '${My_SubIdentity}'},
                         'imsi': {'type': 'string', 'value': '${My_IMSI}'},
-                        'status': {'type': 'number', 'value': 1},
-                        'createDate': {'type': 'date', 'value': '${G.today()}'}
+                        'status': {'type': 'number', 'value': 1, 'isDefault': True},
+                        'createDate': {'type': 'date', 'value': '${G.today()}', 'isDefault': True}
                     },
                     'offeringInfo': {
                         'primaryOfferingId': {'type': 'string', 'value': '${My_PrimaryOfferingID}'},
-                        'effectiveDate': {'type': 'date', 'value': '${G.today()}'}
+                        'effectiveDate': {'type': 'date', 'value': '${G.today()}', 'isDefault': True}
                     }
                 }
             }},
-            {'name': 'rRsp', 'label': '响应验证', 'type': 'json-tree', 'required': False, 'defaultValue': {
-                'resultCode': {'type': 'string', 'value': '0', 'validation': 'equals'},
-                'resultMsg': {'type': 'string', 'value': 'Success', 'validation': 'contains'},
+            {'name': 'rRsp', 'label': '响应验证', 'type': 'json-tree', 'required': False, 'isResponse': True, 'defaultValue': {
+                'resultCode': {'type': 'string', 'value': '0', 'validation': 'equals', 'isDefault': True},
+                'resultMsg': {'type': 'string', 'value': 'Success', 'validation': 'noCare', 'isDefault': True},
                 'data': {
-                    'subscriberId': {'type': 'string', 'value': '', 'validation': 'notEmpty', 'saveAs': 'My_SubscriberId'},
-                    'accountId': {'type': 'string', 'value': '', 'validation': 'notEmpty', 'saveAs': 'My_AccountId'}
+                    'subscriberId': {'type': 'string', 'value': '', 'validation': 'notEmpty', 'saveAs': ''},
+                    'accountId': {'type': 'string', 'value': '', 'validation': 'notEmpty', 'saveAs': ''}
                 }
             }}
         ],
@@ -479,11 +506,36 @@ def get_param_schemas():
             {'name': 'shellChecks', 'label': '校验值', 'type': 'input', 'required': False}
         ],
         'restful': [
-            {'name': 'rTpl', 'label': '请求模板', 'type': 'input', 'required': True},
-            {'name': 'url', 'label': '接口URL', 'type': 'input', 'required': True},
-            {'name': 'rReq', 'label': '请求参数', 'type': 'textarea', 'required': False},
-            {'name': 'rRsp', 'label': '响应验证', 'type': 'textarea', 'required': False},
-            {'name': 'rVars', 'label': '变量提取', 'type': 'input', 'required': False}
+            {'name': 'rTpl', 'label': '请求模板', 'type': 'template-select', 'required': True, 'options': [
+                {'value': '@\\rest\\GetUser.json', 'label': 'GET 获取用户'},
+                {'value': '@\\rest\\CreateUser.json', 'label': 'POST 创建用户'},
+                {'value': '@\\rest\\UpdateUser.json', 'label': 'PUT 更新用户'},
+                {'value': '@\\rest\\DeleteUser.json', 'label': 'DELETE 删除用户'},
+                {'value': '@\\rest\\QueryList.json', 'label': 'GET 查询列表'},
+                {'value': '@\\rest\\BatchCreate.json', 'label': 'POST 批量创建'}
+            ]},
+            {'name': 'url', 'label': '接口URL', 'type': 'input', 'required': True, 'placeholder': '${Env.RestApiUrl}/api/v1'},
+            {'name': 'method', 'label': '请求方法', 'type': 'combo', 'required': True, 'options': ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']},
+            {'name': 'rReq', 'label': '请求参数', 'type': 'json-tree', 'required': False, 'isRequest': True, 'defaultValue': {
+                'headers': {
+                    'Content-Type': {'type': 'string', 'value': 'application/json', 'isDefault': True},
+                    'Authorization': {'type': 'string', 'value': 'Bearer ${My_Token}'}
+                },
+                'body': {
+                    'userId': {'type': 'string', 'value': '${My_UserId}'},
+                    'name': {'type': 'string', 'value': ''},
+                    'email': {'type': 'string', 'value': ''},
+                    'status': {'type': 'number', 'value': 1, 'isDefault': True}
+                }
+            }},
+            {'name': 'rRsp', 'label': '响应验证', 'type': 'json-tree', 'required': False, 'isResponse': True, 'defaultValue': {
+                'code': {'type': 'number', 'value': 200, 'validation': 'equals', 'isDefault': True},
+                'message': {'type': 'string', 'value': 'success', 'validation': 'noCare', 'isDefault': True},
+                'data': {
+                    'id': {'type': 'string', 'value': '', 'validation': 'notEmpty', 'saveAs': ''},
+                    'createdAt': {'type': 'date', 'value': '', 'validation': 'noCare'}
+                }
+            }}
         ],
         'comment': [
             {'name': 'content', 'label': '注释内容', 'type': 'textarea', 'required': True}

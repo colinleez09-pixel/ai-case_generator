@@ -3228,11 +3228,189 @@ body {
   font-weight: 700;
 }
 
+/* 显示待修改字段切换 */
+.json-tree-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #64748b;
+  transition: all 0.2s;
+}
+
+.json-tree-toggle-label:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.json-tree-toggle-label input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.json-tree-toggle-text {
+  white-space: nowrap;
+}
+
+/* 默认值字段样式 */
+.json-tree-leaf.is-default-value {
+  opacity: 0.7;
+}
+
+.json-tree-leaf.is-default-value .json-tree-key {
+  color: #9ca3af;
+}
+
+/* 验证规则选择器 */
+.json-tree-validation-selector {
+  display: flex;
+  gap: 2px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.validation-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  transition: all 0.15s;
+}
+
+.validation-option:hover {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.validation-option.active {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.validation-option[data-validation="noCare"].active {
+  background: #94a3b8;
+}
+
+.validation-option[data-validation="notEmpty"].active {
+  background: #f59e0b;
+}
+
+.validation-option[data-validation="equals"].active {
+  background: #10b981;
+}
+
+.validation-option[data-validation="contains"].active {
+  background: #8b5cf6;
+}
+
+.validation-option[data-validation="regex"].active {
+  background: #ec4899;
+}
+
+/* saveAs 输入框 */
+.json-tree-saveas-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.saveas-arrow {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.json-tree-saveas-input {
+  width: 120px;
+  padding: 4px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #fafbfc;
+  color: #374151;
+  transition: all 0.2s;
+}
+
+.json-tree-saveas-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.json-tree-saveas-input::placeholder {
+  color: #cbd5e1;
+}
+
+/* 模板选择器样式 */
+.param-template-select-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.param-template-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #374151;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.param-template-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.param-template-custom {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #6b7280;
+  background: #fafbfc;
+  transition: all 0.2s;
+}
+
+.param-template-custom:focus {
+  outline: none;
+  border-color: #3b82f6;
+  border-style: solid;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.param-template-custom::placeholder {
+  color: #9ca3af;
+}
+
 /* JSON树响应式 */
 @media (max-width: 768px) {
   .json-tree-leaf-content {
     flex-direction: column;
     align-items: flex-start;
+    gap: 6px;
   }
   
   .json-tree-leaf .json-tree-key {
@@ -3242,5 +3420,29 @@ body {
   .json-tree-input {
     width: 100%;
     max-width: none;
+  }
+  
+  .json-tree-validation-selector {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  
+  .json-tree-saveas-wrapper {
+    width: 100%;
+  }
+  
+  .json-tree-saveas-input {
+    flex: 1;
+    width: auto;
+  }
+  
+  .json-tree-actions {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  
+  .json-tree-toggle-label {
+    width: 100%;
+    justify-content: center;
   }
 }

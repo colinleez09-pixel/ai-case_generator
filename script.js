@@ -732,7 +732,7 @@ function init() {
   })
 }
 
-// ============ 参数配置������能 ============
+// ============ 参数配置�������能 ============
 
 // 收集当前用例中所有已定义的变量
 function collectAllVariables() {
@@ -937,6 +937,25 @@ function generateParamField(field, value) {
         ${field.hint ? `<span class="param-field-hint">${field.hint}</span>` : ''}
       </div>
     `
+  } else if (field.type === 'template-select') {
+    // 模板文件下拉选择
+    const options = (field.options || []).map(opt => {
+      const selected = value === opt.value ? 'selected' : ''
+      return `<option value="${opt.value}" ${selected}>${opt.label} (${opt.value})</option>`
+    }).join('')
+    return `
+      <div class="param-field">
+        <label class="param-field-label ${requiredClass}">${field.label}${requiredMark}</label>
+        <div class="param-template-select-wrapper">
+          <select class="param-template-select" data-name="${field.name}">
+            <option value="">请选择模板文件...</option>
+            ${options}
+          </select>
+          <input type="text" class="param-template-custom" data-name="${field.name}-custom" value="${value && !field.options?.find(o => o.value === value) ? value : ''}" placeholder="或输入自定义模板路径">
+        </div>
+        ${field.hint ? `<span class="param-field-hint">${field.hint}</span>` : ''}
+      </div>
+    `
   } else if (field.type === 'combo') {
     // Combo box: 可以从下拉选择，也可以自由输入
     const options = (field.options || []).map(opt => {
@@ -1003,13 +1022,18 @@ function generateParamField(field, value) {
   } else if (field.type === 'json-tree') {
     // JSON树形结构编辑器
     const jsonData = value || field.defaultValue || {}
-    const treeHtml = generateJsonTree(jsonData, field.name, 0)
+    const isResponse = field.isResponse || false
+    const treeHtml = generateJsonTree(jsonData, field.name, 0, '', isResponse)
     
     return `
-      <div class="param-field param-field-json-tree">
+      <div class="param-field param-field-json-tree" data-is-response="${isResponse}">
         <div class="param-field-header">
           <label class="param-field-label ${requiredClass}">${field.label}${requiredMark}</label>
           <div class="json-tree-actions">
+            <label class="json-tree-toggle-label" title="切换显示：仅显示需修改的字段 / 显示全部字段">
+              <input type="checkbox" class="json-tree-show-modified" data-tree-name="${field.name}">
+              <span class="json-tree-toggle-text">仅显示待修改</span>
+            </label>
             <button type="button" class="json-tree-btn json-tree-expand-all" data-tree-name="${field.name}" title="展开全部">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="15 3 21 3 21 9"></polyline>
@@ -1026,15 +1050,9 @@ function generateParamField(field, value) {
                 <line x1="3" y1="21" x2="10" y2="14"></line>
               </svg>
             </button>
-            <button type="button" class="json-tree-btn json-tree-add-node" data-tree-name="${field.name}" title="添加字段">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-            </button>
           </div>
         </div>
-        <div class="json-tree-container" data-json-tree="${field.name}">
+        <div class="json-tree-container" data-json-tree="${field.name}" data-is-response="${isResponse}">
           ${treeHtml}
         </div>
         <input type="hidden" data-name="${field.name}" data-json-tree-value value='${JSON.stringify(jsonData)}'>
@@ -1058,7 +1076,7 @@ function parseVariables(varsString) {
 
 // ============ JSON树形结构编辑器函数 ============
 
-function generateJsonTree(data, treeName, level, parentPath = '') {
+function generateJsonTree(data, treeName, level, parentPath = '', isResponse = false) {
   if (!data || typeof data !== 'object') {
     return '<div class="json-tree-empty">无数据</div>'
   }
@@ -1071,6 +1089,7 @@ function generateJsonTree(data, treeName, level, parentPath = '') {
     const currentPath = parentPath ? `${parentPath}.${key}` : key
     const isExpandable = node && typeof node === 'object' && !node.type
     const isLeaf = node && node.type
+    const isDefault = node && node.isDefault
     
     if (isExpandable) {
       // 可展开的节点（嵌套对象）
@@ -1087,21 +1106,24 @@ function generateJsonTree(data, treeName, level, parentPath = '') {
             <span class="json-tree-count">${Object.keys(node).length} 项</span>
           </div>
           <div class="json-tree-children" style="display: block;">
-            ${generateJsonTree(node, treeName, level + 1, currentPath)}
+            ${generateJsonTree(node, treeName, level + 1, currentPath, isResponse)}
           </div>
         </div>
       `
     } else if (isLeaf) {
       // 叶子节点（带类型的值）
       const inputHtml = generateJsonTreeInput(node, currentPath, treeName)
+      const validationHtml = isResponse ? generateValidationSelector(node, currentPath, treeName) : ''
+      const saveAsHtml = isResponse ? generateSaveAsInput(node, currentPath, treeName) : ''
+      
       html += `
-        <div class="json-tree-node json-tree-leaf" data-path="${currentPath}" data-level="${level}">
+        <div class="json-tree-node json-tree-leaf ${isDefault ? 'is-default-value' : ''}" data-path="${currentPath}" data-level="${level}" data-is-default="${isDefault || false}">
           <div class="json-tree-leaf-content">
             <span class="json-tree-key">${key}</span>
             <span class="json-tree-type-badge json-tree-type-${node.type}">${node.type}</span>
             ${inputHtml}
-            ${node.validation ? `<span class="json-tree-validation" title="验证规则: ${node.validation}">${getValidationIcon(node.validation)}</span>` : ''}
-            ${node.saveAs ? `<span class="json-tree-save-as" title="保存为变量: ${node.saveAs}">→ ${node.saveAs}</span>` : ''}
+            ${validationHtml}
+            ${saveAsHtml}
           </div>
         </div>
       `
@@ -1109,6 +1131,41 @@ function generateJsonTree(data, treeName, level, parentPath = '') {
   })
   
   return html || '<div class="json-tree-empty">无字段</div>'
+}
+
+function generateValidationSelector(node, path, treeName) {
+  const validation = node.validation || 'noCare'
+  const validationOptions = [
+    { value: 'noCare', label: '不校验', icon: '○' },
+    { value: 'notEmpty', label: '非空', icon: '≠∅' },
+    { value: 'equals', label: '等于', icon: '=' },
+    { value: 'contains', label: '包含', icon: '∋' },
+    { value: 'regex', label: '正则', icon: '.*' }
+  ]
+  
+  const optionsHtml = validationOptions.map(opt => `
+    <button type="button" class="validation-option ${validation === opt.value ? 'active' : ''}" 
+            data-validation="${opt.value}" data-path="${path}" data-tree="${treeName}" title="${opt.label}">
+      ${opt.icon}
+    </button>
+  `).join('')
+  
+  return `
+    <div class="json-tree-validation-selector" data-current="${validation}">
+      ${optionsHtml}
+    </div>
+  `
+}
+
+function generateSaveAsInput(node, path, treeName) {
+  const saveAs = node.saveAs || ''
+  return `
+    <div class="json-tree-saveas-wrapper">
+      <span class="saveas-arrow">→</span>
+      <input type="text" class="json-tree-saveas-input" data-path="${path}" data-tree="${treeName}" 
+             value="${saveAs}" placeholder="变量名(可选)" title="保存响应值到变量">
+    </div>
+  `
 }
 
 function generateJsonTreeInput(node, path, treeName) {
@@ -1222,6 +1279,130 @@ function bindJsonTreeEvents() {
         node.classList.remove('expanded')
       })
     })
+  })
+  
+  // 仅显示待修改字段 - 切换开关
+  elements.paramConfigContainer.querySelectorAll('.json-tree-show-modified').forEach(checkbox => {
+    checkbox.addEventListener('change', () => {
+      const treeName = checkbox.dataset.treeName
+      const tree = elements.paramConfigContainer.querySelector(`[data-json-tree="${treeName}"]`)
+      const showOnlyModified = checkbox.checked
+      
+      tree.querySelectorAll('.json-tree-leaf').forEach(leaf => {
+        const isDefault = leaf.dataset.isDefault === 'true'
+        if (showOnlyModified) {
+          // 显示非默认值的字段，隐藏默认值字段
+          leaf.style.display = isDefault ? 'none' : 'block'
+        } else {
+          // 显示所有字段
+          leaf.style.display = 'block'
+        }
+      })
+      
+      // 更新切换文字
+      const toggleText = checkbox.parentElement.querySelector('.json-tree-toggle-text')
+      if (toggleText) {
+        toggleText.textContent = showOnlyModified ? '显示全部字段' : '仅显示待修改'
+      }
+    })
+  })
+  
+  // 验证规则选择器
+  elements.paramConfigContainer.querySelectorAll('.validation-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const validation = btn.dataset.validation
+      const path = btn.dataset.path
+      const treeName = btn.dataset.tree
+      
+      // 更新按钮状态
+      const selector = btn.closest('.json-tree-validation-selector')
+      selector.querySelectorAll('.validation-option').forEach(b => b.classList.remove('active'))
+      btn.classList.add('active')
+      selector.dataset.current = validation
+      
+      // 更新数据
+      updateJsonTreeValidation(treeName, path, validation)
+    })
+  })
+  
+  // saveAs 输入框
+  elements.paramConfigContainer.querySelectorAll('.json-tree-saveas-input').forEach(input => {
+    input.addEventListener('change', () => {
+      const path = input.dataset.path
+      const treeName = input.dataset.tree
+      const saveAs = input.value.trim()
+      
+      updateJsonTreeSaveAs(treeName, path, saveAs)
+    })
+  })
+  
+  // 模板选择器
+  bindTemplateSelectEvents()
+}
+
+function updateJsonTreeValidation(treeName, path, validation) {
+  const hiddenInput = elements.paramConfigContainer.querySelector(`[data-name="${treeName}"][data-json-tree-value]`)
+  if (!hiddenInput) return
+  
+  try {
+    const currentData = JSON.parse(hiddenInput.value || '{}')
+    setNestedProperty(currentData, path, 'validation', validation)
+    hiddenInput.value = JSON.stringify(currentData)
+  } catch (e) {
+    console.error('[v0] 更新验证规则失败:', e)
+  }
+}
+
+function updateJsonTreeSaveAs(treeName, path, saveAs) {
+  const hiddenInput = elements.paramConfigContainer.querySelector(`[data-name="${treeName}"][data-json-tree-value]`)
+  if (!hiddenInput) return
+  
+  try {
+    const currentData = JSON.parse(hiddenInput.value || '{}')
+    setNestedProperty(currentData, path, 'saveAs', saveAs || undefined)
+    hiddenInput.value = JSON.stringify(currentData)
+  } catch (e) {
+    console.error('[v0] 更新saveAs失败:', e)
+  }
+}
+
+function setNestedProperty(obj, path, property, value) {
+  const keys = path.split('.')
+  let current = obj
+  
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (!current[keys[i]]) current[keys[i]] = {}
+    current = current[keys[i]]
+  }
+  
+  const lastKey = keys[keys.length - 1]
+  if (current[lastKey] && typeof current[lastKey] === 'object') {
+    if (value === undefined) {
+      delete current[lastKey][property]
+    } else {
+      current[lastKey][property] = value
+    }
+  }
+}
+
+function bindTemplateSelectEvents() {
+  elements.paramConfigContainer.querySelectorAll('.param-template-select').forEach(select => {
+    const name = select.dataset.name
+    const customInput = elements.paramConfigContainer.querySelector(`[data-name="${name}-custom"]`)
+    
+    select.addEventListener('change', () => {
+      if (select.value && customInput) {
+        customInput.value = ''
+      }
+    })
+    
+    if (customInput) {
+      customInput.addEventListener('input', () => {
+        if (customInput.value) {
+          select.value = ''
+        }
+      })
+    }
   })
 }
 
@@ -1459,6 +1640,18 @@ function collectParamFormData() {
   elements.paramConfigContainer.querySelectorAll('.param-field-textarea').forEach(textarea => {
   const name = textarea.dataset.name
   formData[name] = textarea.value.trim()
+  })
+  
+  // 收集模板选择器
+  elements.paramConfigContainer.querySelectorAll('.param-template-select').forEach(select => {
+    const name = select.dataset.name
+    const customInput = elements.paramConfigContainer.querySelector(`[data-name="${name}-custom"]`)
+    // 优先使用下拉选择的值，如果为空则使用自定义输入
+    if (select.value) {
+      formData[name] = select.value
+    } else if (customInput && customInput.value.trim()) {
+      formData[name] = customInput.value.trim()
+    }
   })
   
   // 收集变量列表
@@ -1909,7 +2102,7 @@ function addDownloadCard() {
   messageDiv.innerHTML = `
     <div class="message-avatar">Agent</div>
     <div class="message-content">
-      <p>用例文件生成完成！您可以点击下方卡片下载。</p>
+      <p>用例文件生成完成！您可以点击下方卡片下���。</p>
       ${cardHtml}
       <div class="message-time">${currentTime}</div>
     </div>
@@ -3957,7 +4150,7 @@ function importStepFromJson() {
     if (step.description) {
       elements.stepDescInput.value = step.description
     }
-    // 如果有组件，保存以便后续使用
+    // 如���有组件，保存以便后续使用
     if (step.components && step.components.length > 0) {
       selectedPresetStep = step
     }
